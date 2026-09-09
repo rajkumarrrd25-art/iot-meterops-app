@@ -1,0 +1,67 @@
+<div class="history">
+
+  <div class="page-topbar">
+  <a class="btn-back" routerLink="/dashboard">&larr; Back to fleet overview</a>
+  <a class="home-btn" routerLink="/dashboard" aria-label="Home">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-9"/><path d="M9.5 20v-6h5v6"/></svg>
+  </a>
+</div>
+
+  <div class="mac-header">
+    <span class="mac-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="7" width="20" height="12" rx="2"/><path d="M6 11h.01M10 11h.01M14 11h.01M6 15h4"/></svg>
+    </span>
+    <div>
+      <p class="mac-label">MAC ID</p>
+      <p class="mac-value">{{ macId }}</p>
+    </div>
+    <span class="view-badge">Device audit trail &middot; view only</span>
+  </div>
+
+  <div class="filters">
+    <label>
+      <span>Stage</span>
+      <select [ngModel]="stageFilter()" (ngModelChange)="stageFilter.set($event)">
+        <option value="">All</option>
+        <option>RECEIPT</option>
+        <option>BOOKING</option>
+        <option>INSTALLATION</option>
+        <option>SERVICE</option>
+        <option>DISCONNECTION</option>
+        <option>REPLACEMENT</option>
+      </select>
+    </label>
+    <label>
+      <span>From</span>
+      <input type="date" [ngModel]="fromDate()" (ngModelChange)="fromDate.set($event)" />
+    </label>
+    <label>
+      <span>To</span>
+      <input type="date" [ngModel]="toDate()" (ngModelChange)="toDate.set($event)" />
+    </label>
+  </div>
+
+  <div class="timeline" *ngIf="!loading() && !notFound() && filteredEvents().length; else stateBlock">
+    <div class="timeline-item" *ngFor="let ev of filteredEvents()" [ngClass]="'dot-' + stageColor(ev.stage)">
+      <span class="dot"></span>
+      <a class="item-body item-body-link" [routerLink]="sectionLink(ev.stage).path" [queryParams]="sectionLink(ev.stage).queryParams">
+        <div class="item-top">
+          <span class="stage-pill" [ngClass]="'pill-' + stageColor(ev.stage)">{{ ev.stage }}</span>
+          <span class="ts">{{ ev.timestamp | date:'d MMM y, h:mm a':'+0530' }} IST</span>
+        </div>
+        <p class="summary">{{ ev.summary }}</p>
+      </a>
+    </div>
+  </div>
+
+  <ng-template #stateBlock>
+    <p class="empty-state" *ngIf="loading()">Loading history...</p>
+    <p class="empty-state" *ngIf="!loading() && notFound()">
+      This MAC ID hasn't been added yet —
+      <a class="inline-link" [routerLink]="['/operations', macId]">add it from Operations first</a>.
+    </p>
+    <p class="empty-state" *ngIf="!loading() && !notFound() && events().length === 0">No history yet for this device — events will appear here as receipt, booking, and other stages are saved.</p>
+    <p class="empty-state" *ngIf="!loading() && !notFound() && events().length > 0 && filteredEvents().length === 0">No events match these filters.</p>
+  </ng-template>
+
+</div>

@@ -1,0 +1,355 @@
+<div class="page-topbar">
+  <a class="btn-back" *ngIf="!viewOnly()" [routerLink]="['/operations', macId]">&larr; Back to operations</a>
+  <a class="btn-back" *ngIf="viewOnly()" [routerLink]="['/history', macId]">&larr; Back to history</a>
+  <a class="home-btn" routerLink="/dashboard" aria-label="Home">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-9"/><path d="M9.5 20v-6h5v6"/></svg>
+  </a>
+</div>
+
+<div class="mac-header">
+  <span class="mac-icon">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="7" width="20" height="12" rx="2"/><path d="M6 11h.01M10 11h.01M14 11h.01M6 15h4"/></svg>
+  </span>
+  <div>
+    <p class="mac-label">MAC ID</p>
+    <p class="mac-value">{{ macId }} — {{ section() }}</p>
+  </div>
+  <span class="view-badge" *ngIf="viewOnly()">History record &middot; view only</span>
+</div>
+
+<!-- BOOKING + PAYMENT — read only, deep-linked from History -->
+<div class="detail-card view-card" *ngIf="section() === 'booking-payment' && viewOnly() && bookingPayment() as bp">
+  <p class="card-title">Booking + payment details</p>
+  <div class="view-grid">
+    <div class="view-field"><span class="view-label">Customer name</span><span class="view-value">{{ bp.customer.name || '—' }}</span></div>
+    <div class="view-field"><span class="view-label">Address</span><span class="view-value">{{ bp.customer.address || '—' }}</span></div>
+    <div class="view-field"><span class="view-label">Email</span><span class="view-value">{{ bp.customer.email || '—' }}</span></div>
+    <div class="view-field"><span class="view-label">Phone</span><span class="view-value">{{ bp.customer.phone || '—' }}</span></div>
+    <div class="view-field"><span class="view-label">Booking date</span><span class="view-value">{{ bp.bookingDate || '—' }}</span></div>
+    <div class="view-field"><span class="view-label">Booking status</span><span class="view-value">{{ bp.bookingStatus || '—' }}</span></div>
+    <div class="view-field" *ngIf="bp.bookingStatus === 'Cancelled'"><span class="view-label">Cancellation reason</span><span class="view-value">{{ bp.cancellationReason || '—' }}{{ bp.cancellationNote ? ' — ' + bp.cancellationNote : '' }}</span></div>
+    <div class="view-field" *ngIf="bp.bookingStatus === 'Confirmed'"><span class="view-label">Installation mode</span><span class="view-value">{{ bp.installationMode || '—' }}</span></div>
+    <ng-container *ngIf="bp.bookingStatus === 'Confirmed'">
+      <div class="view-field"><span class="view-label">Payment mode</span><span class="view-value">{{ bp.paymentMode || '—' }}</span></div>
+      <div class="view-field"><span class="view-label">Quoted price</span><span class="view-value">{{ bp.quotedPrice }}</span></div>
+      <div class="view-field"><span class="view-label">Amount paid</span><span class="view-value">{{ bp.amountPaid }}</span></div>
+      <div class="view-field"><span class="view-label">Amount pending</span><span class="view-value">{{ bp.amountPending }}</span></div>
+      <div class="view-field"><span class="view-label">Payment status</span><span class="view-value">{{ paymentStatusLabel(bp) }}</span></div>
+      <div class="view-field" *ngIf="bp.paymentDate"><span class="view-label">Payment date</span><span class="view-value">{{ bp.paymentDate }}</span></div>
+    </ng-container>
+  </div>
+  <div class="view-actions">
+    <button class="btn-add" type="button" (click)="downloadSectionPdf()">Download PDF</button>
+    <button class="btn-secondary" type="button" (click)="closeView()">Close</button>
+  </div>
+</div>
+
+<!-- BOOKING + PAYMENT -->
+<form class="detail-card receipt-form" *ngIf="section() === 'booking-payment' && !viewOnly() && bookingPayment() as bp" (ngSubmit)="saveBookingPayment()">
+  <fieldset>
+    <legend>Customer</legend>
+    <label>Name <input [(ngModel)]="bp.customer.name" name="custName" required /></label>
+    <label>Address <input [(ngModel)]="bp.customer.address" name="custAddress" /></label>
+    <label>Email <input [(ngModel)]="bp.customer.email" name="custEmail" /></label>
+    <label>Phone <input [(ngModel)]="bp.customer.phone" name="custPhone" required /></label>
+  </fieldset>
+  <fieldset>
+    <legend>Booking</legend>
+    <label>Booking date <input type="date" [(ngModel)]="bp.bookingDate" name="bookingDate" required /></label>
+    <label>Booking status
+      <select [(ngModel)]="bp.bookingStatus" name="bookingStatus">
+        <option>Pending</option><option>Confirmed</option><option>Cancelled</option>
+      </select>
+    </label>
+    <ng-container *ngIf="bp.bookingStatus === 'Cancelled'">
+      <label>Cancellation reason
+        <select [(ngModel)]="bp.cancellationReason" name="cancellationReason">
+          <option>Customer request</option>
+          <option>Duplicate entry</option>
+          <option>Payment issue</option>
+          <option>Device unavailable</option>
+          <option>Other</option>
+        </select>
+      </label>
+      <label *ngIf="bp.cancellationReason === 'Other'">Note <input [(ngModel)]="bp.cancellationNote" name="cancellationNote" /></label>
+    </ng-container>
+    <label *ngIf="bp.bookingStatus === 'Confirmed'">Installation mode
+      <select [(ngModel)]="bp.installationMode" name="installationMode">
+        <option>Self</option><option>By technician</option>
+      </select>
+    </label>
+    <p class="hint-text full-row" *ngIf="bp.bookingStatus === 'Cancelled'">Cancelled bookings skip installation, monitoring, and disconnection entirely.</p>
+    <p class="hint-text full-row" *ngIf="bp.bookingStatus === 'Pending'">Confirm this booking to unlock installation, monitoring, and disconnection for this device.</p>
+  </fieldset>
+
+  <fieldset *ngIf="bp.bookingStatus === 'Confirmed'">
+    <legend>Payment</legend>
+    <label>Quoted price <input type="number" min="1" [(ngModel)]="bp.quotedPrice" name="quotedPrice" required (ngModelChange)="recalcAmountPending(bp)" /></label>
+    <label>Payment mode
+      <select [(ngModel)]="bp.paymentMode" name="paymentMode">
+        <option>Online</option><option>Offline</option>
+      </select>
+    </label>
+    <div class="full-row payment-row">
+      <label>Amount paid <input type="number" [(ngModel)]="bp.amountPaid" name="amountPaid" (ngModelChange)="recalcAmountPending(bp)" /></label>
+      <label>Amount pending <input type="number" [ngModel]="bp.amountPending" name="amountPending" readonly title="Derived from Quoted price − Amount paid" /></label>
+      <label>Payment date <input type="date" [(ngModel)]="bp.paymentDate" name="paymentDate" /></label>
+    </div>
+    <p class="hint-text full-row">
+      Payment status: <strong>{{ paymentStatusLabel(bp) }}</strong>
+    </p>
+  </fieldset>
+  <p class="hint-text full-row" *ngIf="bp.bookingStatus === 'Cancelled'">Booking cancelled — payment details aren't needed.</p>
+  <p class="hint-text full-row" *ngIf="bp.bookingStatus === 'Pending'">Confirm this booking to enter payment details.</p>
+  <p class="hint-text full-row" *ngIf="bookingMessage()">{{ bookingMessage() }}</p>
+  <p class="warning full-row" *ngIf="bookingError()">{{ bookingError() }}</p>
+  <div class="full-row" style="display:flex; gap:8px;">
+    <button class="btn-add" type="submit" [disabled]="savingBooking()">{{ savingBooking() ? 'Saving…' : 'Save' }}</button>
+    <button class="btn-secondary" type="button" (click)="clearBookingPayment()" [disabled]="savingBooking()">Clear</button>
+  </div>
+</form>
+
+<!-- INSTALLATION — read only, deep-linked from History -->
+<div class="detail-card view-card" *ngIf="section() === 'installation' && viewOnly() && installation() as inst">
+  <p class="card-title">Installation details</p>
+  <div class="view-grid">
+    <div class="view-field"><span class="view-label">Installed by customer (self)</span><span class="view-value">{{ inst.installedByCustomer ? 'Yes' : 'No' }}</span></div>
+  </div>
+  <ng-container *ngIf="!inst.installedByCustomer">
+    <p class="card-sub-heading">Booking</p>
+    <div class="view-grid">
+      <div class="view-field"><span class="view-label">Technician name</span><span class="view-value">{{ inst.technicianName || '—' }}</span></div>
+      <div class="view-field"><span class="view-label">Installation date & time</span><span class="view-value">{{ inst.installationDateTime || '—' }}</span></div>
+      <div class="view-field"><span class="view-label">Charge type</span><span class="view-value">{{ inst.chargeType || '—' }}</span></div>
+      <ng-container *ngIf="inst.chargeType === 'Paid'">
+        <div class="view-field"><span class="view-label">Quoted amount</span><span class="view-value">{{ inst.quotedAmount }}</span></div>
+      </ng-container>
+    </div>
+    <p class="card-sub-heading">Work Completion</p>
+    <div class="view-grid">
+      <div class="view-field"><span class="view-label">Completed date & time</span><span class="view-value">{{ inst.completedDateTime || '—' }}</span></div>
+      <div class="view-field"><span class="view-label">Status</span><span class="view-value">{{ inst.installationStatus || '—' }}</span></div>
+      <ng-container *ngIf="inst.chargeType === 'Paid'">
+        <div class="view-field"><span class="view-label">Payment status</span><span class="view-value">{{ inst.paymentStatus || '—' }}</span></div>
+        <ng-container *ngIf="inst.paymentStatus === 'Paid'">
+          <div class="view-field"><span class="view-label">Payment mode</span><span class="view-value">{{ inst.paymentMode || '—' }}</span></div>
+          <div class="view-field"><span class="view-label">Payment date & time</span><span class="view-value">{{ inst.paymentDate || '—' }}</span></div>
+        </ng-container>
+      </ng-container>
+      <div class="view-field" *ngIf="installationRemarksRequired(inst)"><span class="view-label">Remarks</span><span class="view-value">{{ inst.remarks || '—' }}</span></div>
+    </div>
+  </ng-container>
+  <div class="view-actions">
+    <button class="btn-add" type="button" (click)="downloadSectionPdf()">Download PDF</button>
+    <button class="btn-secondary" type="button" (click)="closeView()">Close</button>
+  </div>
+</div>
+
+<!-- INSTALLATION -->
+<form class="detail-card receipt-form" *ngIf="section() === 'installation' && !viewOnly() && installation() as inst" (ngSubmit)="saveInstallation()">
+  <label class="checkbox-row full-row">
+    <input type="checkbox" [(ngModel)]="inst.installedByCustomer" name="selfInstall" />
+    Installed by customer (Self)
+  </label>
+  <p class="hint-text full-row" *ngIf="bookingPayment()?.installationMode">
+    Defaulted from Booking + Payment (Installation mode: {{ bookingPayment()?.installationMode }}) — change here if it's since been corrected.
+  </p>
+
+  <p class="hint-text full-row" *ngIf="inst.installedByCustomer">Installed by customer — no further fields needed.</p>
+
+  <ng-container *ngIf="!inst.installedByCustomer">
+    <p *ngIf="installationLockReason() as reason" class="warning full-row">
+      {{ reason }}
+    </p>
+
+    <fieldset>
+      <legend>Booking</legend>
+      <label>Technician name <input [(ngModel)]="inst.technicianName" name="techName" required /></label>
+      <label>Installation date & time <input type="datetime-local" [(ngModel)]="inst.installationDateTime" name="installDateTime" required /></label>
+      <label>Charge type
+        <select [(ngModel)]="inst.chargeType" name="chargeType">
+          <option>Free</option><option>Paid</option>
+        </select>
+      </label>
+      <ng-container *ngIf="showInstallationPaidFields(inst)">
+        <label>Quoted amount <input type="number" min="1" [(ngModel)]="inst.quotedAmount" name="quotedAmount" required /></label>
+      </ng-container>
+      <p class="hint-text full-row" *ngIf="!showInstallationPaidFields(inst)">Free installation — no amount or payment mode needed.</p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Work Completion</legend>
+      <label>Completed date & time <input type="datetime-local" [(ngModel)]="inst.completedDateTime" name="completedDateTime" /></label>
+      <label>Status
+        <select [(ngModel)]="inst.installationStatus" name="installStatus">
+          <option>Pending</option><option>Completed</option><option>Failed</option>
+        </select>
+      </label>
+      <ng-container *ngIf="showInstallationPaidFields(inst)">
+        <label>Payment Status
+          <select [(ngModel)]="inst.paymentStatus" name="installPaymentStatus">
+            <option>Paid</option><option>Pending</option>
+          </select>
+        </label>
+        <ng-container *ngIf="showInstallationPaymentPaidFields(inst)">
+          <label>Payment Mode
+            <select [(ngModel)]="inst.paymentMode" name="installPaymentMode">
+              <option>Online</option><option>Offline</option>
+            </select>
+          </label>
+          <label>Payment Date & Time <input type="datetime-local" [(ngModel)]="inst.paymentDate" name="installPaymentDate" required /></label>
+        </ng-container>
+        <p class="hint-text full-row" *ngIf="!showInstallationPaymentPaidFields(inst)">Payment pending — payment mode and payment date & time aren't required yet.</p>
+      </ng-container>
+      <label class="full-row" *ngIf="installationRemarksRequired(inst)">Remarks <input [(ngModel)]="inst.remarks" name="installRemarks" required placeholder="Why is this pending / what failed" /></label>
+    </fieldset>
+  </ng-container>
+
+  <p class="hint-text full-row" *ngIf="installationMessage()">{{ installationMessage() }}</p>
+  <p class="warning full-row" *ngIf="installationError()">{{ installationError() }}</p>
+  <div class="full-row" style="display:flex; gap:8px;">
+    <button class="btn-add" type="submit" [disabled]="installationLocked() || savingInstallation()">{{ savingInstallation() ? 'Saving…' : 'Save' }}</button>
+    <button class="btn-secondary" type="button" (click)="clearInstallation()" [disabled]="savingInstallation()">Clear</button>
+  </div>
+</form>
+
+<!-- MONITORING & SERVICE -->
+<div class="detail-card" *ngIf="section() === 'monitoring-service' && monitoringService() as ms">
+  <div class="live-status-row" [class.is-on]="liveOnline() === true" [class.is-off]="liveOnline() === false">
+    <span class="live-status-dot" aria-hidden="true"></span>
+    <div class="live-status-text">
+      <p class="live-status-label">Device Status: <strong>{{ liveStatusText() }}</strong></p>
+      <p class="live-status-updated">Last Updated: {{ liveLastUpdatedText() }}</p>
+    </div>
+  </div>
+
+  <p class="card-sub-heading">Customer complaints (view only — from customer app)</p>
+  <ul class="detail-list">
+    <li *ngFor="let c of ms.complaints">{{ c.dateTime }} — {{ c.description }} ({{ c.status }})</li>
+  </ul>
+
+  <!-- Service history list removed from this page — it's shown in the
+       dedicated History page instead, so it isn't duplicated here.
+       The underlying data (ms.services) is still used by
+       downloadSectionPdf() below and by backend status computation. -->
+
+  <!-- Deep-linked from History: view + download only, no logging form -->
+  <div class="view-actions" *ngIf="viewOnly()">
+    <button class="btn-add" type="button" (click)="downloadSectionPdf()">Download PDF</button>
+    <button class="btn-secondary" type="button" (click)="closeView()">Close</button>
+  </div>
+
+  <ng-container *ngIf="!viewOnly()">
+  <p class="card-sub-heading">Log new service</p>
+  <p class="warning full-row" *ngIf="bookingGateReason() as gateReason">{{ gateReason }}</p>
+  <form class="receipt-form" (ngSubmit)="submitService()">
+    <label>Booked by <input [(ngModel)]="newService().bookedBy" name="bookedBy" /></label>
+    <label>Solved by <input [(ngModel)]="newService().solvedBy" name="solvedBy" required /></label>
+    <label>Date <input type="date" [(ngModel)]="newService().date" name="serviceDate" required /></label>
+    <label>Resolution type
+      <select [(ngModel)]="newService().resolutionType" name="resolutionType">
+        <option>Repair</option>
+        <option>Replacement-Spare</option>
+        <option>Replacement-Device</option>
+      </select>
+    </label>
+    <label>Amount <input type="number" [(ngModel)]="newService().amount!.value" name="amountValue" /></label>
+    <label>Amount status
+      <select [(ngModel)]="newService().amount!.status" name="amountStatus">
+        <option>Paid</option><option>Free</option>
+      </select>
+    </label>
+
+    <ng-container *ngIf="showRepairFields()">
+      <label>Repair description <input [(ngModel)]="newService().repair!.description" name="repairDesc" required /></label>
+      <label>Repair remarks <input [(ngModel)]="newService().repair!.remarks" name="repairRemarks" /></label>
+    </ng-container>
+
+    <ng-container *ngIf="showSpareFields()">
+      <label>Spare part name <input [(ngModel)]="newService().replacementSpare!.partName" name="partName" required /></label>
+      <label>Cost <input type="number" [(ngModel)]="newService().replacementSpare!.cost" name="partCost" /></label>
+      <label>Spare remarks <input [(ngModel)]="newService().replacementSpare!.remarks" name="partRemarks" /></label>
+    </ng-container>
+
+    <ng-container *ngIf="showDeviceReplacementFields()">
+      <label>Old MAC ID <input [(ngModel)]="newService().replacementDevice!.oldMacId" name="oldMacId" /></label>
+      <label>New MAC ID <input [(ngModel)]="newService().replacementDevice!.newMacId" name="newMacId" required /></label>
+      <label>Date <input type="date" [(ngModel)]="newService().replacementDevice!.date" name="replaceDate" /></label>
+      <label>By whom <input [(ngModel)]="newService().replacementDevice!.byWhom" name="byWhom" /></label>
+      <label>Remarks <input [(ngModel)]="newService().replacementDevice!.remarks" name="replaceRemarks" /></label>
+      <label>Receipt <input [(ngModel)]="newService().replacementDevice!.receipt" name="replaceReceipt" /></label>
+    </ng-container>
+
+    <p class="hint-text full-row" *ngIf="serviceMessage()">{{ serviceMessage() }}</p>
+    <p class="warning full-row" *ngIf="serviceError()">{{ serviceError() }}</p>
+    <div class="full-row" style="display:flex; gap:8px;">
+      <button class="btn-add" type="submit" [disabled]="savingService() || bookingGateReason() !== null">{{ savingService() ? 'Saving…' : 'Save service entry' }}</button>
+      <button class="btn-secondary" type="button" (click)="clearServiceDraft()" [disabled]="savingService()">Clear</button>
+    </div>
+  </form>
+  </ng-container>
+</div>
+
+<!-- DISCONNECTION — read only, deep-linked from History -->
+<div class="detail-card view-card" *ngIf="section() === 'disconnection' && viewOnly() && disconnection() as d">
+  <p class="card-title">Disconnection details</p>
+  <div class="view-grid">
+    <div class="view-field"><span class="view-label">By whom</span><span class="view-value">{{ d.byWhom || '—' }}</span></div>
+    <div class="view-field"><span class="view-label">Name</span><span class="view-value">{{ d.name || '—' }}</span></div>
+    <div class="view-field"><span class="view-label">Date</span><span class="view-value">{{ d.date || '—' }}</span></div>
+    <div class="view-field"><span class="view-label">Type</span><span class="view-value">{{ d.type || '—' }}</span></div>
+    <div class="view-field"><span class="view-label">Reason</span><span class="view-value">{{ d.reason === 'Other' ? (d.otherReasonText || 'Other') : d.reason }}</span></div>
+  </div>
+  <div class="view-actions">
+    <button class="btn-add" type="button" (click)="downloadSectionPdf()">Download PDF</button>
+    <button class="btn-secondary" type="button" (click)="closeView()">Close</button>
+  </div>
+</div>
+
+<!-- DISCONNECTION -->
+<form class="detail-card receipt-form" *ngIf="section() === 'disconnection' && !viewOnly() && disconnection() as d" (ngSubmit)="saveDisconnection()">
+  <label>By whom
+    <select [(ngModel)]="d.byWhom" name="byWhom">
+      <option>Customer</option><option>Provider</option>
+    </select>
+  </label>
+  <label>Name <input [(ngModel)]="d.name" name="discName" /></label>
+  <label>Date <input type="date" [(ngModel)]="d.date" name="discDate" /></label>
+  <label>Type
+    <select [(ngModel)]="d.type" name="discType">
+      <option>Temporary stop</option><option>Permanent</option>
+    </select>
+  </label>
+  <label>Reason
+    <select [(ngModel)]="d.reason" name="discReason">
+      <option>Payment issue</option><option>Other</option>
+    </select>
+  </label>
+  <label *ngIf="d.reason === 'Other'">Details <input [(ngModel)]="d.otherReasonText" name="otherReason" /></label>
+  <p class="warning full-row" *ngIf="bookingGateReason() as gateReason">{{ gateReason }}</p>
+  <p class="hint-text full-row" *ngIf="disconnectionMessage()">{{ disconnectionMessage() }}</p>
+  <p class="warning full-row" *ngIf="disconnectionError()">{{ disconnectionError() }}</p>
+  <div class="full-row" style="display:flex; gap:8px;">
+    <button class="btn-add" type="submit" [disabled]="savingDisconnection() || bookingGateReason() !== null">{{ savingDisconnection() ? 'Saving…' : 'Save' }}</button>
+    <button class="btn-secondary" type="button" (click)="clearDisconnection()" [disabled]="savingDisconnection()">Clear</button>
+  </div>
+</form>
+
+<!-- CURRENT STATUS — read only, derived -->
+<div class="detail-card" *ngIf="section() === 'current-status' && currentStatus() as cs">
+  <p><strong>Status:</strong> {{ cs.status }}</p>
+  <p class="status-desc">{{ statusDescription(cs.status) }}</p>
+  <p><strong>Location:</strong> {{ cs.location || '—' }}</p>
+  <p class="hint-text"><em>This section is derived automatically from the latest lifecycle event — it cannot be edited directly.</em></p>
+</div>
+
+<!-- CUSTOMER FEEDBACK — read only, written by the customer app -->
+<div class="detail-card" *ngIf="section() === 'customer-feedback'">
+  <p class="hint-text"><em>View only — submitted from the customer app.</em></p>
+  <ul class="detail-list">
+    <li *ngFor="let f of customerFeedback()">
+      {{ f.date }} — {{ f.customerName }}<span *ngIf="f.rating"> ({{ f.rating }}/5)</span>: {{ f.feedbackText }}
+    </li>
+  </ul>
+  <p class="hint-text" *ngIf="customerFeedback().length === 0">No feedback yet for this device.</p>
+</div>

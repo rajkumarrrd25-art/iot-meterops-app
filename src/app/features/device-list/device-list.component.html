@@ -1,0 +1,58 @@
+<div class="device-list">
+
+  <div class="header-row">
+    <div>
+      <p class="eyebrow">{{ mode === 'history' ? 'Device audit trail' : 'Update process / operations' }}</p>
+      <h2 class="title">All devices</h2>
+    </div>
+    <a class="btn-back" routerLink="/dashboard">&larr; Back to fleet overview</a>
+  </div>
+
+  <!-- Jump to a new MAC ID: step 1 (add + receipt intake) happens on the
+       Operations page now, not here. Only shown on the operations entry
+       point — history is view-only, nothing to add here. -->
+  <div class="add-card" *ngIf="mode === 'operations'">
+    <p class="add-label">Add a new MAC ID</p>
+    <div class="add-controls">
+      <input
+        [(ngModel)]="newMacId"
+        placeholder="Enter MAC ID (e.g. AA:BB:CC...)"
+        (keyup.enter)="addNew()"
+      />
+      <button class="btn-add" (click)="addNew()">Continue</button>
+    </div>
+  </div>
+
+  <div class="search-card">
+    <input
+      class="search-input"
+      [(ngModel)]="search"
+      placeholder="Search by MAC ID..."
+    />
+  </div>
+
+  <p class="state-msg" *ngIf="loading()">Loading devices...</p>
+  <p class="state-msg error" *ngIf="!loading() && loadError()">{{ loadError() }}</p>
+
+  <div class="list" *ngIf="!loading() && !loadError()">
+    <p class="state-msg" *ngIf="devices().length === 0">
+      No devices added yet. Add a MAC ID above to get started.
+    </p>
+    <p class="state-msg" *ngIf="devices().length > 0 && filtered().length === 0">
+      No devices match "{{ search }}".
+    </p>
+
+    <button
+      class="row"
+      *ngFor="let d of filtered()"
+      (click)="open(d.macId)"
+      [ngClass]="'row-' + stageColor(d.stage)"
+    >
+      <span class="row-mac">{{ d.macId }}</span>
+      <span class="row-stage" [ngClass]="'pill-' + stageColor(d.stage)">{{ d.stage }}</span>
+      <span class="row-created">Added {{ d.createdAt | date:'mediumDate' }}</span>
+      <span class="row-arrow">{{ mode === 'history' ? 'View history' : 'Open' }} &rarr;</span>
+    </button>
+  </div>
+
+</div>

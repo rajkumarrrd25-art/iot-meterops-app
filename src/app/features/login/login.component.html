@@ -1,0 +1,293 @@
+<div class="grid-field" aria-hidden="true">
+  <svg viewBox="0 0 800 600" preserveAspectRatio="xMidYMid slice">
+    <defs>
+      <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#2f6fed"/>
+        <stop offset="100%" stop-color="#22d3ee"/>
+      </linearGradient>
+    </defs>
+    <path class="grid-line" d="M0,120 L180,120 L220,80 L420,80 L460,120 L800,120" />
+    <path class="grid-line slow" d="M0,300 L140,300 L140,220 L340,220 L340,300 L600,300 L600,240 L800,240" />
+    <path class="grid-line" d="M60,600 L60,440 L260,440 L260,500 L500,500 L500,440 L700,440 L700,600" />
+    <path class="grid-line slow" d="M800,420 L640,420 L640,360 L480,360" />
+    <circle class="grid-node pulse" cx="220" cy="80" r="3"/>
+    <circle class="grid-node pulse" cx="460" cy="120" r="3"/>
+    <circle class="grid-node" cx="140" cy="220" r="2.5"/>
+    <circle class="grid-node pulse" cx="340" cy="300" r="3"/>
+    <circle class="grid-node" cx="600" cy="240" r="2.5"/>
+    <circle class="grid-node pulse" cx="260" cy="500" r="3"/>
+    <circle class="grid-node" cx="500" cy="440" r="2.5"/>
+    <circle class="grid-node pulse" cx="640" cy="360" r="3"/>
+  </svg>
+</div>
+
+<div class="stage">
+
+  <div class="brand">
+    <div class="brand-word">IoT-<span>MeterOps</span></div>
+  </div>
+
+  <!-- MAIN LOGIN CARD -->
+  <div class="card">
+    <svg class="waveform" viewBox="0 0 380 46" preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="waveGrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#2f6fed" stop-opacity="0"/>
+          <stop offset="15%" stop-color="#2f6fed"/>
+          <stop offset="55%" stop-color="#22d3ee"/>
+          <stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <path class="wave-path" d="M0,23 L60,23 L75,8 L90,38 L105,23 L150,23 L165,12 L180,34 L195,23 L260,23 L275,8 L290,38 L305,23 L380,23" />
+    </svg>
+
+    <div class="card-head">
+      <h1>Welcome Back</h1>
+      <p>Admin sign in — device lifecycle management</p>
+      <div class="status-chip">
+        <span class="status-dot"></span>
+        SYSTEM&nbsp;ONLINE
+      </div>
+    </div>
+
+    <!-- Browser Autofill-ஐ ஆரம்பத்தில் தடுக்க autocomplete="on" சேர்க்கப்பட்டுள்ளது -->
+    <form #loginForm="ngForm" (ngSubmit)="onSubmit(loginForm)" action="javascript:void(0);" method="post" autocomplete="username" novalidate>
+      
+      <!-- Email Field -->
+      <div class="field">
+        <label for="email">Email</label>
+        <div class="input-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 6h18v12H3z"/><path d="M3 7l9 6 9-6"/></svg>
+          <input
+            id="email"
+            name="username"
+            type="email"
+            placeholder="Enter your email"
+            autocomplete="off"
+            [(ngModel)]="email"
+            required
+          />
+        </div>
+      </div>
+
+      <!-- Password Field -->
+      <div class="field">
+        <label for="password">Password</label>
+        <div class="input-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+          
+          <input
+            id="password"
+            name="password"
+            [type]="showPassword() ? 'text' : 'password'"
+            placeholder="Enter your password"
+            autocomplete="current-password"
+            [(ngModel)]="password"
+            required
+            class="has-suffix"
+          />
+          
+          <!-- Eye Toggle Button -->
+          <button 
+            type="button" 
+            class="password-toggle"
+            (click)="togglePasswordVisibility()" 
+            aria-label="Toggle password visibility">
+            
+            <svg *ngIf="showPassword()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+
+            <svg *ngIf="!showPassword()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+              <line x1="1" y1="1" x2="23" y2="23"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Forgot Password Link -->
+      <div class="row-between forgot-only">
+        <a class="forgot" href="javascript:void(0);" (click)="openForgotModal()">Forgot password?</a>
+      </div>
+
+      <button class="btn-primary" type="submit">
+          Sign In
+      </button>
+    </form>
+
+    <p class="cognito-note">Admin access only &middot; Secure authentication</p>
+  </div>
+
+</div>
+
+<!-- FORGOT PASSWORD MODAL CARD POPUP -->
+<div class="modal-backdrop" *ngIf="isForgotModalOpen()">
+  <div class="card modal-card">
+    <button type="button" class="close-btn" (click)="closeForgotModal()">✕</button>
+
+    <!-- STEP 1: Email Request for OTP -->
+    <div *ngIf="forgotStep() === 1">
+      <div class="card-head">
+        <h1>Reset Password</h1>
+        <p>Enter your email address to receive an OTP verification code</p>
+      </div>
+
+      <form (ngSubmit)="sendOtp()">
+        <div class="field">
+          <label for="resetEmail">Email Address</label>
+          <div class="input-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 6h18v12H3z"/><path d="M3 7l9 6 9-6"/></svg>
+            <input 
+              id="resetEmail" 
+              type="email" 
+              placeholder="Enter your email" 
+              [(ngModel)]="resetEmail" 
+              name="resetEmail" 
+              required 
+            />
+          </div>
+        </div>
+        <button class="btn-primary" type="submit" [disabled]="loading()">
+          {{ loading() ? 'Sending OTP...' : 'Send OTP' }}
+        </button>
+      </form>
+    </div>
+
+    <!-- STEP 2: Verify OTP & Change Password -->
+    <div *ngIf="forgotStep() === 2">
+      <div class="card-head">
+        <h1>Verify OTP & Reset</h1>
+        <p>Enter the OTP sent to {{ resetEmail }} and choose a new password</p>
+      </div>
+
+      <form (ngSubmit)="confirmResetPassword()">
+        <!-- OTP Code Input -->
+        <div class="field">
+          <label for="otpCode">OTP Code</label>
+          <div class="input-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <input 
+              id="otpCode" 
+              type="text" 
+              placeholder="Enter 6-digit OTP" 
+              [(ngModel)]="otpCode" 
+              name="otpCode" 
+              maxlength="6"
+              required 
+            />
+          </div>
+        </div>
+
+        <!-- New Password Input -->
+        <div class="field">
+          <label for="newPassword">New Password</label>
+          <div class="input-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+            <input 
+              id="newPassword" 
+              type="password" 
+              placeholder="Enter new password" 
+              [(ngModel)]="newPassword" 
+              name="newPassword" 
+              required 
+            />
+          </div>
+        </div>
+
+        <!-- Confirm Password Input -->
+        <div class="field">
+          <label for="confirmPassword">Confirm Password</label>
+          <div class="input-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+            <input 
+              id="confirmPassword" 
+              type="password" 
+              placeholder="Confirm new password" 
+              [(ngModel)]="confirmPassword" 
+              name="confirmPassword" 
+              required 
+            />
+          </div>
+        </div>
+
+        <button class="btn-primary" type="submit" [disabled]="loading()">
+          {{ loading() ? 'Updating Password...' : 'Reset Password' }}
+        </button>
+      </form>
+    </div>
+
+  </div>
+</div>
+<!-- FIRST LOGIN / TEMPORARY PASSWORD MODAL -->
+<div class="modal-backdrop" *ngIf="newPasswordRequired()">
+
+  <div class="card modal-card">
+
+    <div class="card-head">
+      <h1>Create New Password</h1>
+      <p>Please create a new password to continue.</p>
+    </div>
+
+    <form (ngSubmit)="setPermanentPassword()">
+
+      <div class="field">
+        <label for="firstLoginNewPassword">New Password</label>
+
+        <div class="input-wrap">
+          <svg viewBox="0 0 24 24"
+               fill="none"
+               stroke="currentColor"
+               stroke-width="1.6">
+            <rect x="4" y="10" width="16" height="10" rx="2"/>
+            <path d="M8 10V7a4 4 0 0 1 8 0v3"/>
+          </svg>
+
+          <input
+            id="firstLoginNewPassword"
+            type="password"
+            name="firstLoginNewPassword"
+            placeholder="Enter new password"
+            [(ngModel)]="firstLoginNewPassword"
+            required
+          />
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="firstLoginConfirmPassword">Confirm Password</label>
+
+        <div class="input-wrap">
+          <svg viewBox="0 0 24 24"
+               fill="none"
+               stroke="currentColor"
+               stroke-width="1.6">
+            <rect x="4" y="10" width="16" height="10" rx="2"/>
+            <path d="M8 10V7a4 4 0 0 1 8 0v3"/>
+          </svg>
+
+          <input
+            id="firstLoginConfirmPassword"
+            type="password"
+            name="firstLoginConfirmPassword"
+            placeholder="Confirm new password"
+            [(ngModel)]="firstLoginConfirmPassword"
+            required
+          />
+        </div>
+      </div>
+
+      <button
+        class="btn-primary"
+        type="submit"
+        [disabled]="loading()">
+
+        {{ loading() ? 'Updating Password...' : 'Set New Password' }}
+
+      </button>
+
+    </form>
+
+  </div>
+</div>

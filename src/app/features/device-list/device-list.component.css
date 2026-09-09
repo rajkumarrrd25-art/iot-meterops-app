@@ -1,0 +1,177 @@
+:host{
+  --bg-deep:#060d1a;
+  --bg-mid:#0b1830;
+  --panel:rgba(255,255,255,0.055);
+  --panel-border:rgba(255,255,255,0.12);
+  --blue:#2f6fed;
+  --cyan:#22d3ee;
+  --text-hi:#eef4ff;
+  --text-mid:#a9b8d6;
+  --text-low:#6d7ea3;
+  --radius-lg:20px;
+  --radius-md:12px;
+  --ease:cubic-bezier(.22,.9,.32,1);
+
+  display:block;
+  min-height:100vh;
+  padding:32px 28px 60px;
+  font-family:'Inter', sans-serif;
+  color:var(--text-hi);
+  background:
+    radial-gradient(60% 50% at 18% 0%, rgba(47,111,237,0.22), transparent 60%),
+    radial-gradient(55% 45% at 88% 20%, rgba(34,211,238,0.16), transparent 60%),
+    linear-gradient(160deg, var(--bg-deep) 0%, var(--bg-mid) 55%, #081226 100%);
+}
+
+*{ box-sizing:border-box; }
+
+.header-row{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  margin-bottom:24px;
+  flex-wrap:wrap;
+  gap:12px;
+}
+.eyebrow{
+  margin:0 0 4px;
+  font-size:12px;
+  font-weight:600;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  color:var(--text-mid);
+}
+.title{
+  margin:0;
+  font-size:22px;
+  font-weight:700;
+}
+.btn-back{
+  font-size:13px;
+  color:var(--text-mid);
+  text-decoration:none;
+}
+.btn-back:hover{ color:var(--cyan); }
+
+.add-card, .search-card{
+  padding:20px 22px;
+  border-radius:var(--radius-lg);
+  background:var(--panel);
+  border:1px solid var(--panel-border);
+  backdrop-filter:blur(22px) saturate(140%);
+  -webkit-backdrop-filter:blur(22px) saturate(140%);
+  margin-bottom:16px;
+}
+
+.add-label{
+  margin:0 0 10px;
+  font-size:12px;
+  font-weight:600;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  color:var(--text-mid);
+}
+.add-controls{ display:flex; gap:8px; }
+.add-controls input, .search-input{
+  flex:1;
+  padding:11px 14px;
+  border-radius:var(--radius-md);
+  border:1px solid var(--panel-border);
+  background:rgba(255,255,255,0.04);
+  color:var(--text-hi);
+  font-family:'JetBrains Mono', monospace;
+  font-size:13px;
+  outline:none;
+}
+.add-controls input::placeholder, .search-input::placeholder{ color:var(--text-low); }
+.add-controls input:focus, .search-input:focus{ border-color:rgba(34,211,238,0.5); }
+
+.btn-add{
+  border:none;
+  border-radius:var(--radius-md);
+  padding:11px 22px;
+  background:linear-gradient(135deg, var(--blue) 0%, var(--cyan) 100%);
+  color:#04101f;
+  font-family:'Inter', sans-serif;
+  font-weight:600;
+  font-size:14px;
+  cursor:pointer;
+  box-shadow:0 10px 20px -10px rgba(47,111,237,0.55);
+  transition:transform .15s var(--ease);
+  white-space:nowrap;
+}
+.btn-add:hover{ transform:translateY(-2px); }
+.btn-add:disabled{ opacity:0.6; cursor:not-allowed; transform:none; }
+.add-error{ margin:14px 0 0; font-size:12.5px; color:#f68e94; }
+
+.state-msg{
+  color:var(--text-low);
+  font-size:13.5px;
+  padding:18px 4px;
+}
+.state-msg.error{ color:#f68e94; }
+
+.list{ display:flex; flex-direction:column; gap:10px; }
+
+.row{
+  display:flex;
+  align-items:center;
+  gap:16px;
+  width:100%;
+  text-align:left;
+  padding:16px 18px;
+  border-radius:var(--radius-md);
+  background:var(--panel);
+  border:1px solid var(--panel-border);
+  color:var(--text-hi);
+  font-family:'Inter', sans-serif;
+  cursor:pointer;
+  backdrop-filter:blur(18px) saturate(140%);
+  -webkit-backdrop-filter:blur(18px) saturate(140%);
+  transition:transform .15s var(--ease), border-color .15s var(--ease), background .15s var(--ease);
+}
+.row:hover{
+  transform:translateY(-2px);
+  border-color:rgba(34,211,238,0.35);
+  background:rgba(255,255,255,0.09);
+}
+
+.row-mac{
+  font-family:'JetBrains Mono', monospace;
+  font-weight:600;
+  font-size:14px;
+  min-width:170px;
+}
+
+.row-stage{
+  font-size:10.5px;
+  font-weight:600;
+  letter-spacing:0.04em;
+  text-transform:uppercase;
+  padding:3px 10px;
+  border-radius:999px;
+  flex-shrink:0;
+}
+.pill-gray{ background:rgba(169,184,214,0.14); color:var(--text-mid); }
+.pill-blue{ background:rgba(47,111,237,0.16); color:#7fa6ff; }
+.pill-purple{ background:rgba(168,85,247,0.16); color:#c79bfb; }
+.pill-green{ background:rgba(47,216,138,0.14); color:#5be8ac; }
+.pill-red{ background:rgba(239,68,68,0.14); color:#f68e94; }
+
+.row-created{
+  font-size:12px;
+  color:var(--text-low);
+  flex:1;
+}
+
+.row-arrow{
+  font-size:12.5px;
+  font-weight:600;
+  color:var(--cyan);
+  white-space:nowrap;
+}
+
+@media (max-width:640px){
+  .row{ flex-wrap:wrap; }
+  .row-created{ order:3; width:100%; }
+}
