@@ -5,7 +5,12 @@
       <p class="eyebrow">{{ mode === 'history' ? 'Device audit trail' : 'Update process / operations' }}</p>
       <h2 class="title">All devices</h2>
     </div>
-    <a class="btn-back" routerLink="/dashboard">&larr; Back to fleet overview</a>
+    <div class="topbar-actions">
+      <a class="btn-back" routerLink="/dashboard">&larr; Back to fleet overview</a>
+      <a class="home-btn" routerLink="/dashboard" aria-label="Home">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-9"/><path d="M9.5 20v-6h5v6"/></svg>
+      </a>
+    </div>
   </div>
 
   <!-- Jump to a new MAC ID: step 1 (add + receipt intake) happens on the
@@ -23,36 +28,63 @@
     </div>
   </div>
 
-  <div class="search-card">
-    <input
-      class="search-input"
-      [(ngModel)]="search"
-      placeholder="Search by MAC ID..."
-    />
-  </div>
-
   <p class="state-msg" *ngIf="loading()">Loading devices...</p>
   <p class="state-msg error" *ngIf="!loading() && loadError()">{{ loadError() }}</p>
+
+  <!-- Filter bar — with a fleet in the hundreds/thousands, rendering every
+       device unfiltered is both slow and not useful for finding anything,
+       so this sits between the device count and the list itself. -->
+  <div class="filter-bar" *ngIf="!loading() && !loadError() && devices().length > 0">
+    <select class="filter-select" [ngModel]="stageFilter()" (ngModelChange)="onStageChange($event)">
+      <option *ngFor="let s of stageOptions" [ngValue]="s">{{ s === 'All' ? 'All stages' : s }}</option>
+    </select>
+    <div class="filter-date-group">
+      <span class="filter-date-label">
+        From
+        <app-date-picker [value]="fromDate()" (valueChange)="onFromChange($event)"></app-date-picker>
+      </span>
+      <span class="filter-date-label">
+        To
+        <app-date-picker [value]="toDate()" (valueChange)="onToChange($event)"></app-date-picker>
+      </span>
+    </div>
+    <button type="button" class="filter-clear" *ngIf="hasActiveFilters()" (click)="clearFilters()">
+      Clear filters
+    </button>
+  </div>
 
   <div class="list" *ngIf="!loading() && !loadError()">
     <p class="state-msg" *ngIf="devices().length === 0">
       No devices added yet. Add a MAC ID above to get started.
     </p>
-    <p class="state-msg" *ngIf="devices().length > 0 && filtered().length === 0">
-      No devices match "{{ search }}".
+    <p class="state-msg" *ngIf="devices().length > 0 && displayed().length === 0">
+      No devices match these filters.
+    </p>
+    <p class="result-count" *ngIf="displayed().length > 0">
+      Showing {{ displayed().length }} of {{ devices().length }} devices
     </p>
 
-    <button
+    <div
       class="row"
-      *ngFor="let d of filtered()"
-      (click)="open(d.macId)"
-      [ngClass]="'row-' + stageColor(d.stage)"
+      *ngFor="let d of displayed()"
+      [ngClass]="'row-' + stageColor(displayStage(d))"
     >
-      <span class="row-mac">{{ d.macId }}</span>
-      <span class="row-stage" [ngClass]="'pill-' + stageColor(d.stage)">{{ d.stage }}</span>
-      <span class="row-created">Added {{ d.createdAt | date:'mediumDate' }}</span>
-      <span class="row-arrow">{{ mode === 'history' ? 'View history' : 'Open' }} &rarr;</span>
-    </button>
+      <div class="row-device">
+        <span class="row-mac">{{ d.macId }}</span>
+        <span class="row-meta">
+          <span class="row-stage" [ngClass]="'pill-' + stageColor(displayStage(d))">{{ displayStage(d) }}</span>
+          <span class="row-created">Added {{ d.createdAt | date:'mediumDate' }}</span>
+        </span>
+      </div>
+      <div class="row-customer">
+        <span class="row-customer-name">{{ d.customerName || '—' }}</span>
+        <span class="row-customer-phone">{{ d.customerPhone || 'No customer yet' }}</span>
+      </div>
+      <span class="row-address">{{ d.customerAddress }}</span>
+      <button type="button" class="row-arrow" (click)="open(d.macId)">
+        {{ mode === 'history' ? 'View history' : 'Open' }} &rarr;
+      </button>
+    </div>
   </div>
 
 </div>

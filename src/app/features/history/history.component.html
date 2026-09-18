@@ -11,12 +11,26 @@
     <span class="mac-icon">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="7" width="20" height="12" rx="2"/><path d="M6 11h.01M10 11h.01M14 11h.01M6 15h4"/></svg>
     </span>
-    <div>
+    <div class="mac-info">
       <p class="mac-label">MAC ID</p>
       <p class="mac-value">{{ macId }}</p>
     </div>
     <span class="view-badge">Device audit trail &middot; view only</span>
   </div>
+
+  <div class="profile-card" *ngIf="!profileLoading() && profile() as p">
+    <div class="profile-item">
+      <p class="profile-label">Status</p>
+      <span class="stage-pill" [ngClass]="'pill-' + statusColor(p.status)">{{ p.status }}</span>
+    </div>
+    <div class="profile-item">
+      <p class="profile-label">Location</p>
+      <p class="profile-value">{{ p.location || '—' }}</p>
+    </div>
+  </div>
+  <p class="profile-empty" *ngIf="!profileLoading() && !profile() && !notFound()">
+    No current status on file for this device yet.
+  </p>
 
   <div class="filters">
     <label>
@@ -29,6 +43,8 @@
         <option>SERVICE</option>
         <option>DISCONNECTION</option>
         <option>REPLACEMENT</option>
+        <option>COMPLAINT</option>
+        <option>FEEDBACK</option>
       </select>
     </label>
     <label>
@@ -44,13 +60,31 @@
   <div class="timeline" *ngIf="!loading() && !notFound() && filteredEvents().length; else stateBlock">
     <div class="timeline-item" *ngFor="let ev of filteredEvents()" [ngClass]="'dot-' + stageColor(ev.stage)">
       <span class="dot"></span>
-      <a class="item-body item-body-link" [routerLink]="sectionLink(ev.stage).path" [queryParams]="sectionLink(ev.stage).queryParams">
+      <button type="button" class="item-body item-body-link" (click)="openEvent(ev)">
         <div class="item-top">
           <span class="stage-pill" [ngClass]="'pill-' + stageColor(ev.stage)">{{ ev.stage }}</span>
           <span class="ts">{{ ev.timestamp | date:'d MMM y, h:mm a':'+0530' }} IST</span>
         </div>
         <p class="summary">{{ ev.summary }}</p>
-      </a>
+      </button>
+    </div>
+  </div>
+
+  <div class="detail-overlay" *ngIf="selectedEvent() as ev" (click)="closeEventDetail()">
+    <div class="detail-panel" (click)="$event.stopPropagation()">
+      <div class="detail-panel-header">
+        <span class="stage-pill" [ngClass]="'pill-' + stageColor(ev.stage)">{{ ev.stage }}</span>
+        <span class="detail-ts">{{ ev.timestamp | date:'d MMM y, h:mm a':'+0530' }} IST</span>
+      </div>
+      <p class="summary">{{ ev.summary }}</p>
+      <div class="detail-row" *ngFor="let r of eventDetailRows(ev)">
+        <span class="detail-row-label">{{ r.label }}</span>
+        <span class="detail-row-value">{{ r.value }}</span>
+      </div>
+      <div class="detail-actions">
+        <button class="btn-add" type="button" (click)="downloadEventDetailPdf(ev)">Download PDF</button>
+        <button class="btn-secondary" type="button" (click)="closeEventDetail()">Close</button>
+      </div>
     </div>
   </div>
 

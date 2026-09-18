@@ -20,6 +20,15 @@ export const environment = {
   // Lambda: MeterOpsDeviceLifecycle, API: MeterOpsDeviceLifecycleApi).
   apiBaseUrl: 'https://8am3ovg6m1.execute-api.ap-south-1.amazonaws.com/prod',
 
+  // Same live device-monitoring endpoint used by App 1 (IoT Energy
+  // Monitoring Dashboard)'s EnergyDataService.deviceApiUrl / LiveVoltageTracker.
+  // Kept as its own URL (separate from apiBaseUrl above) because it lives
+  // on a different API Gateway deployment than the Device Lifecycle API —
+  // see live-device-status.service.ts for why this must never be re-derived
+  // elsewhere.
+  liveDeviceApiUrl:
+    'https://rook297mid.execute-api.ap-south-1.amazonaws.com/default/EnergyConsumptionReportFromDynamoDB',
+
   endpoints: {
     dashboardSummary: '/devices/summary',
     devicesList:    '/devices',

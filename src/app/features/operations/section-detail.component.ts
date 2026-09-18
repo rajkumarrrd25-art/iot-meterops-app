@@ -19,7 +19,11 @@ import {
   CurrentStatusRecord,
   CustomerFeedback,
   OperationSection,
+  ReceiptRecord,
+  ComplaintRecord,
 } from '../../core/models/device.model';
+import { isFutureDateOnly, isFutureDateTime, compareLifecycleDates } from '../../core/utils/date-rules.util';
+import { downloadPdf } from '../../core/utils/pdf-download.util';
 
 @Component({
   selector: 'app-section-detail',
@@ -41,6 +45,11 @@ export class SectionDetailComponent implements OnInit, OnDestroy {
   bookingPayment = signal<BookingPaymentRecord | null>(null);
   installation = signal<InstallationRecord | null>(null);
   monitoringService = signal<MonitoringServiceRecord | null>(null);
+  // Receipt's dateReceived is the earliest possible date in this device's
+  // lifecycle — fetched unconditionally (like bookingPayment above) purely
+  // so date validation below can enforce "not earlier than date received"
+  // regardless of which section page happens to be open.
+  receipt = signal<ReceiptRecord | null>(null);
 
   // Live ON/OFF for the Monitoring & Service page — sourced from the SAME
   // live device-monitoring API/logic App 1 already uses (see
@@ -94,8 +103,8 @@ export class SectionDetailComponent implements OnInit, OnDestroy {
 
   private emptyServiceDraft(): Partial<ServiceRecord> {
     return {
-      bookedBy: '',
-      solvedBy: '',
+      technicianName: '',
+      technicianPhone: '',
       date: '',
       resolutionType: 'Repair' as ServiceResolutionType,
       amount: { value: 0, status: 'Paid' },
@@ -132,6 +141,10 @@ export class SectionDetailComponent implements OnInit, OnDestroy {
       catchError(() => of(this.emptyBookingPayment())),
     ).subscribe((bp) => this.bookingPayment.set(bp));
 
+    this.api.getReceipt(this.macId).pipe(
+      catchError(() => of(null)),
+    ).subscribe((r) => this.receipt.set(r));
+
     switch (this.section()) {
       case 'booking-payment':
         // Already loaded above — nothing further to do.
@@ -165,13 +178,38 @@ export class SectionDetailComponent implements OnInit, OnDestroy {
         });
         break;
       case 'monitoring-service':
-        this.api.getMonitoringService(this.macId).subscribe((r) => this.monitoringService.set(r));
+        this.api.getMonitoringService(this.macId).subscribe((r) => {
+          this.monitoringService.set(r);
+          // Bug fix: the service form never linked back to the open
+          // complaint it was addressing, so submitService() sent no
+          // complaintId and the backend's "resolve on service" logic
+          // (POST monitoring-service/service, body.complaintId branch)
+          // never fired — complaint stayed OPEN and the device stage
+          // stayed stuck on "Complaint" forever, no matter how many
+          // service entries got logged against it.
+          // When there's exactly one open complaint, default the draft
+          // to resolve it — tech can still change/clear it via the
+          // "Resolves complaint" dropdown before saving.
+          const open = (r.complaints || []).filter((c) => c.status === 'Open');
+          if (open.length === 1 && !this.newService().complaintId) {
+            this.newService.update((d) => ({ ...d, complaintId: open[0].complaintId }));
+          }
+        });
+        // Needed for service-date lower-bound validation below — a
+        // service entry can't predate the installation it's servicing.
+        this.api.getInstallation(this.macId).pipe(
+          catchError(() => of(null)),
+        ).subscribe((inst) => this.installation.set(inst));
         this.startLiveStatusPolling();
         break;
       case 'disconnection':
         this.api.getDisconnection(this.macId).pipe(
           catchError(() => of(this.emptyDisconnection())),
         ).subscribe((r) => this.disconnection.set(r));
+        // Needed for disconnection-date lower-bound validation below.
+        this.api.getInstallation(this.macId).pipe(
+          catchError(() => of(null)),
+        ).subscribe((inst) => this.installation.set(inst));
         break;
       case 'current-status':
         // Read-only, derived server-side — no save button on this section at all.
@@ -284,14 +322,38 @@ export class SectionDetailComponent implements OnInit, OnDestroy {
     return inst.installationStatus === 'Pending' || inst.installationStatus === 'Failed';
   }
 
-  // Required-field guard for Installation — mirrors
-  // validateBookingDraft()/validateServiceDraft(). Only runs for the
-  // "by technician" path; a self-install has nothing left to validate.
+  // Required-field guard for Installation. Two paths:
+  //   - self-install: a lightweight "confirm" tab — the customer's own
+  //     confirmation date/time is the one required field. This is what
+  //     actually flips installationStatus to Completed (see
+  //     confirmSelfInstall() below) — filling this in and saving IS the
+  //     confirmation, not a silent side-effect of the checkbox alone.
+  //   - technician path: unchanged, full completion form below.
   private validateInstallationDraft(inst: InstallationRecord): string | null {
-    if (inst.installedByCustomer) return null;
+    if (inst.installedByCustomer) {
+      if (!inst.installationDateTime) {
+        return 'Enter the date & time the customer installed this device to confirm it.';
+      }
+      if (isFutureDateTime(inst.installationDateTime)) {
+        return 'Installation date & time cannot be in the future.';
+      }
+      const bp = this.bookingPayment();
+      if (bp?.bookingDate && compareLifecycleDates(inst.installationDateTime, bp.bookingDate) < 0) {
+        return 'Installation date & time cannot be earlier than the booking date.';
+      }
+      return null;
+    }
 
     if (!inst.technicianName) return 'Technician name is required.';
     if (!inst.installationDateTime) return 'Installation date & time is required.';
+    // installationDateTime is a SCHEDULE (the technician visit being
+    // booked), not a claim that it already happened — a future date here
+    // is legitimate and must NOT be rejected. It still can't predate the
+    // booking it belongs to.
+    const bp = this.bookingPayment();
+    if (bp?.bookingDate && compareLifecycleDates(inst.installationDateTime, bp.bookingDate) < 0) {
+      return 'Installation date & time cannot be earlier than the booking date.';
+    }
     if (!inst.chargeType) return 'Pick a charge type.';
     if (inst.chargeType === 'Paid') {
       if (!(Number(inst.quotedAmount) > 0)) {
@@ -301,6 +363,24 @@ export class SectionDetailComponent implements OnInit, OnDestroy {
       if (inst.paymentStatus === 'Paid') {
         if (!inst.paymentMode) return 'Pick a payment mode for a paid installation.';
         if (!inst.paymentDate) return 'Payment date & time is required when payment status is Paid.';
+        // Payment status 'Paid' means the payment has already happened.
+        if (inst.paymentDate && isFutureDateTime(inst.paymentDate)) {
+          return 'Payment date & time cannot be in the future for a completed payment.';
+        }
+      }
+    }
+    // Work completion: a status of 'Completed' is a claim that the visit
+    // already happened, so it needs an actual (non-future) completion
+    // date that isn't earlier than the scheduled visit itself.
+    if (inst.installationStatus === 'Completed' && !inst.completedDateTime) {
+      return 'Completed date & time is required when work completion status is Completed.';
+    }
+    if (inst.completedDateTime) {
+      if (isFutureDateTime(inst.completedDateTime)) {
+        return 'Completed date & time cannot be in the future.';
+      }
+      if (compareLifecycleDates(inst.completedDateTime, inst.installationDateTime) < 0) {
+        return 'Completed date & time cannot be earlier than the installation date & time.';
       }
     }
     if (this.installationRemarksRequired(inst) && !inst.remarks) {
@@ -356,6 +436,17 @@ export class SectionDetailComponent implements OnInit, OnDestroy {
     if (!bp.customer.name) return 'Customer name is required.';
     if (!bp.customer.phone) return 'Customer phone is required.';
     if (!bp.bookingDate) return 'Booking date is required.';
+    // A booking is recorded once it actually happens (Pending/Confirmed/
+    // Cancelled are all outcomes of a booking that already took place) —
+    // so a future booking date is never valid, unlike a scheduled
+    // installation visit further down the lifecycle.
+    if (isFutureDateOnly(bp.bookingDate)) {
+      return 'Booking date cannot be in the future.';
+    }
+    const receipt = this.receipt();
+    if (receipt?.dateReceived && compareLifecycleDates(bp.bookingDate, receipt.dateReceived) < 0) {
+      return 'Booking date cannot be earlier than the date the device was received.';
+    }
     if (bp.bookingStatus === 'Cancelled' && !bp.cancellationReason) {
       return 'Pick a cancellation reason.';
     }
@@ -367,6 +458,13 @@ export class SectionDetailComponent implements OnInit, OnDestroy {
     }
     if (Number(bp.amountPaid) > Number(bp.quotedPrice)) {
       return 'Amount paid cannot be greater than the quoted price.';
+    }
+    if (bp.paymentDate) {
+      // Payment date on file means the payment already happened.
+      if (isFutureDateOnly(bp.paymentDate)) return 'Payment date cannot be in the future.';
+      if (compareLifecycleDates(bp.paymentDate, bp.bookingDate) < 0) {
+        return 'Payment date cannot be earlier than the booking date.';
+      }
     }
     return null;
   }
@@ -475,14 +573,32 @@ export class SectionDetailComponent implements OnInit, OnDestroy {
       return;
     }
 
+    // Self-install has its own short "confirm" form now (see
+    // validateInstallationDraft above and the template's separate
+    // installedByCustomer branch) — the customer's install date/time is
+    // a required field there, so reaching this point means it was
+    // actually filled in and validated, not silently defaulted. That
+    // filled-in date IS the completion event for a self-install, so it
+    // doubles as completedDateTime and installationStatus flips to
+    // Completed right here. Without this, installationStatus stayed at
+    // emptyInstallation()'s 'Pending' default forever for a
+    // self-installed device — it never counted as Installed on the
+    // Dashboard, never flipped to 'Active' in Current status, and never
+    // unlocked the rest of the lifecycle chain gated on Installation
+    // being done, even though the device genuinely IS installed.
+    const payload: InstallationRecord = r.installedByCustomer
+      ? { ...r, installationStatus: 'Completed', completedDateTime: r.installationDateTime }
+      : r;
+
     this.savingInstallation.set(true);
     this.installationMessage.set(null);
     this.installationError.set(null);
-    this.api.saveInstallation(r).subscribe({
+    this.api.saveInstallation(payload).subscribe({
       next: (res: any) => {
         this.savingInstallation.set(false);
         const changed = !(res && res.changed === false);
         this.installationMessage.set(changed ? 'Saved.' : 'No changes to save.');
+        this.installation.set(payload);
         if (changed) {
           this.router.navigate(['/operations', this.macId]);
         }
@@ -498,6 +614,12 @@ export class SectionDetailComponent implements OnInit, OnDestroy {
     this.installation.set(this.emptyInstallation());
     this.installationMessage.set(null);
     this.installationError.set(null);
+  }
+
+  // Complaints this service entry can resolve — only 'Open' ones (an
+  // 'In-progress' or already-'Resolved' complaint isn't offered here).
+  openComplaints(): ComplaintRecord[] {
+    return (this.monitoringService()?.complaints || []).filter((c) => c.status === 'Open');
   }
 
   // Resolution-type-driven field visibility inside Service.
@@ -519,15 +641,31 @@ export class SectionDetailComponent implements OnInit, OnDestroy {
   private validateServiceDraft(draft: Partial<ServiceRecord>): string | null {
     if (!draft.resolutionType) return 'Pick a resolution type.';
     if (!draft.date) return 'Date is required.';
-    if (!draft.solvedBy) return 'Solved by is required.';
+    // A service visit is logged after it happens — a future date is
+    // never valid here.
+    if (isFutureDateOnly(draft.date)) return 'Service date cannot be in the future.';
+    const inst = this.installation();
+    const installLowerBound = inst?.completedDateTime || inst?.installationDateTime;
+    if (installLowerBound && compareLifecycleDates(draft.date, installLowerBound) < 0) {
+      return 'Service date cannot be earlier than the installation date.';
+    }
+    if (!draft.technicianName) return 'Technician name is required.';
+    if (!draft.technicianPhone) return 'Technician phone number is required.';
     if (draft.resolutionType === 'Repair' && !draft.repair?.description) {
       return 'Add a repair description.';
     }
     if (draft.resolutionType === 'Replacement-Spare' && !draft.replacementSpare?.partName) {
       return 'Add the spare part name.';
     }
-    if (draft.resolutionType === 'Replacement-Device' && !draft.replacementDevice?.newMacId) {
-      return 'Add the new MAC ID.';
+    if (draft.resolutionType === 'Replacement-Device') {
+      if (!draft.replacementDevice?.newMacId) return 'Add the new MAC ID.';
+      const replaceDate = draft.replacementDevice?.date;
+      if (replaceDate) {
+        if (isFutureDateOnly(replaceDate)) return 'Replacement date cannot be in the future.';
+        if (compareLifecycleDates(replaceDate, draft.date) < 0) {
+          return 'Replacement date cannot be earlier than the service date.';
+        }
+      }
     }
     return null;
   }
@@ -549,9 +687,10 @@ export class SectionDetailComponent implements OnInit, OnDestroy {
     }
 
     const payload: Partial<ServiceRecord> = {
-      bookedBy: draft.bookedBy,
-      solvedBy: draft.solvedBy,
+      technicianName: draft.technicianName,
+      technicianPhone: draft.technicianPhone,
       date: draft.date,
+      complaintId: draft.complaintId || undefined,
       amount: draft.amount,
       resolutionType: draft.resolutionType,
       repair: draft.resolutionType === 'Repair' ? draft.repair : undefined,
@@ -566,7 +705,27 @@ export class SectionDetailComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (res: any) => {
           this.savingService.set(false);
-          this.serviceMessage.set('Service entry saved.');
+          // draft.complaintId was sent — but the backend only resolves
+          // it if a complaint with that exact ID was actually found on
+          // file (see resolvedComplaintId in the response). Selecting a
+          // complaint in the dropdown and having it silently NOT
+          // resolve (stale page, complaint already closed elsewhere,
+          // id mismatch) was invisible before — this surfaces it
+          // instead of letting the tech assume it worked and navigate
+          // away.
+          if (draft.complaintId && !res?.resolvedComplaintId) {
+            this.serviceError.set(
+              `Service entry saved, but complaint ${draft.complaintId} could not be found to mark Resolved. Refresh this page and check its status before assuming it's closed.`,
+            );
+            this.newService.set(this.emptyServiceDraft());
+            this.load();
+            return;
+          }
+          this.serviceMessage.set(
+            res?.resolvedComplaintId
+              ? `Service entry saved. Complaint ${res.resolvedComplaintId} marked Resolved.`
+              : 'Service entry saved.',
+          );
           this.newService.set(this.emptyServiceDraft());
           this.load();
           // Unlike the other sections' PUTs, this endpoint always
@@ -595,6 +754,22 @@ export class SectionDetailComponent implements OnInit, OnDestroy {
     this.serviceError.set(null);
   }
 
+  // Disconnection had NO field validation at all before this — Save went
+  // straight to the API once the booking gate was clear, so even a blank
+  // date could be submitted. A disconnection is logged after it happens,
+  // so (like Service/Receipt) a future date is never valid; it also can't
+  // predate the installation being disconnected.
+  private validateDisconnectionDraft(d: DisconnectionRecord): string | null {
+    if (!d.date) return 'Disconnection date is required.';
+    if (isFutureDateOnly(d.date)) return 'Disconnection date cannot be in the future.';
+    const inst = this.installation();
+    const installLowerBound = inst?.completedDateTime || inst?.installationDateTime;
+    if (installLowerBound && compareLifecycleDates(d.date, installLowerBound) < 0) {
+      return 'Disconnection date cannot be earlier than the installation date.';
+    }
+    return null;
+  }
+
   saveDisconnection(): void {
     const r = this.disconnection();
     if (!r || this.savingDisconnection()) return;
@@ -602,6 +777,12 @@ export class SectionDetailComponent implements OnInit, OnDestroy {
     const gateReason = this.bookingGateReason();
     if (gateReason) {
       this.disconnectionError.set(gateReason);
+      return;
+    }
+
+    const validationMessage = this.validateDisconnectionDraft(r);
+    if (validationMessage) {
+      this.disconnectionError.set(validationMessage);
       return;
     }
 
@@ -628,6 +809,53 @@ export class SectionDetailComponent implements OnInit, OnDestroy {
     this.disconnection.set(this.emptyDisconnection());
     this.disconnectionMessage.set(null);
     this.disconnectionError.set(null);
+  }
+
+  // "Temporary stop" disconnections shouldn't be stuck as Disconnected
+  // forever once the underlying issue (payment received, etc.) is
+  // sorted out. This reuses the same PUT /disconnection endpoint the
+  // form above already calls — it just re-sends the existing record
+  // with status: 'Reconnected' + a timestamp, which the backend treats
+  // as "no longer a live disconnection" for stage/status purposes
+  // while keeping the record on file for history.
+  reconnecting = signal(false);
+
+  canReconnect(): boolean {
+    const d = this.disconnection();
+    // d.date is required on every real saved disconnection (see
+    // validateDisconnectionDraft) — an empty date means this is just
+    // the blank emptyDisconnection() draft (no disconnection has
+    // actually been logged for this device yet), not a real record to
+    // reconnect from.
+    return !!d && !!d.date && d.type === 'Temporary stop' && d.status !== 'Reconnected';
+  }
+
+  reconnectDevice(): void {
+    const r = this.disconnection();
+    if (!r || !this.canReconnect() || this.reconnecting()) return;
+
+    this.reconnecting.set(true);
+    this.disconnectionMessage.set(null);
+    this.disconnectionError.set(null);
+
+    const payload: DisconnectionRecord = {
+      ...r,
+      status: 'Reconnected',
+      reconnectedAt: new Date().toISOString(),
+    };
+
+    this.api.saveDisconnection(payload).subscribe({
+      next: () => {
+        this.reconnecting.set(false);
+        this.disconnectionMessage.set('Device reconnected — no longer counted as Disconnected.');
+        this.disconnection.set(payload);
+        this.load();
+      },
+      error: () => {
+        this.reconnecting.set(false);
+        this.disconnectionError.set('Could not reconnect. Check your connection and try again.');
+      },
+    });
   }
 
   // Download button in read-only (History deep-link) mode — one PDF
@@ -729,11 +957,11 @@ export class SectionDetailComponent implements OnInit, OnDestroy {
 
         if (ms.complaints.length > 0) {
           sub('Complaints');
-          ms.complaints.forEach((c) => row(c.dateTime, `${c.description} (${c.status})`));
+          ms.complaints.forEach((c) => row(c.raisedAt, `[${c.category}] ${c.description} (${c.status})`));
         }
         if (ms.services.length > 0) {
           sub('Service history');
-          ms.services.forEach((s) => row(s.date, `${s.resolutionType} — solved by ${s.solvedBy}`));
+          ms.services.forEach((s) => row(s.date, `${s.resolutionType} — by ${s.technicianName} (${s.technicianPhone})`));
         }
       }
     } else if (section === 'disconnection') {
@@ -752,7 +980,8 @@ export class SectionDetailComponent implements OnInit, OnDestroy {
       row('MAC ID', this.macId);
     }
 
-    doc.save(`${section}-${this.macId}.pdf`);
+    downloadPdf(doc, `${section}-${this.macId}.pdf`)
+      .catch((err) => console.error('PDF download failed', err));
   }
 
   // Close button in read-only mode — this page was only reached via a

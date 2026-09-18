@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">MeterOps</string>
+    <string name="title_activity_main">MeterOps</string>
+    <string name="package_name">com.iotmeterops.app</string>
+    <string name="custom_url_scheme">com.iotmeterops.app</string>
+</resources>

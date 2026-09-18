@@ -35,7 +35,20 @@
   border-radius:16px;
   background:#0a1120;
   flex-wrap:nowrap;
-  overflow-x:auto;
+  overflow-x:hidden;
+  position:relative;
+}
+
+/* Hide native scrollbars everywhere while keeping content scrollable
+   (wheel/trackpad/touch still work — this only hides the visible bar). */
+*{
+  scrollbar-width:none;
+  -ms-overflow-style:none;
+}
+*::-webkit-scrollbar{
+  display:none;
+  width:0;
+  height:0;
 }
 
 .brand{ display:flex; align-items:center; gap:10px; flex-shrink:0; }
@@ -49,7 +62,13 @@
 .brand-name{ font-size:14px; font-weight:700; color:var(--text-hi); margin:0; }
 .brand-tag{ font-size:11px; color:var(--text-low); margin:1px 0 0; }
 
-.right-cluster{ display:flex; align-items:center; gap:14px; flex-shrink:0; }
+/* True horizontal centering: taken out of the flex flow and centered
+   against the whole bar, so it stays centered no matter how wide the
+   brand block or the logout button are (landscape + wide screens). */
+.right-cluster{
+  display:flex; align-items:center; gap:14px; flex-shrink:0;
+  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+}
 
 .datetime-line{ font-size:12px; font-weight:600; color:#a9c4ff; margin:0; font-variant-numeric:tabular-nums; white-space:nowrap; }
 
@@ -83,6 +102,9 @@
 .logout-icon-btn svg{ width:16px; height:16px; }
 .logout-icon-btn:hover{ background:rgba(226,75,74,0.2); }
 
+.avatar-top,
+.logout-bottom{ display:none; }
+
 .search-row{
   display:grid;
   grid-template-columns:1fr 1fr;
@@ -102,22 +124,25 @@
 }
 
 .search-label{
-  margin:0 0 10px;
+  margin:0 0 12px;
   font-size:12px;
   font-weight:600;
   letter-spacing:0.06em;
   text-transform:uppercase;
   color:var(--text-mid);
+  white-space:nowrap;
 }
 
 .search-controls{
   display:flex;
+  align-items:stretch;
   gap:8px;
 }
 
 .search-controls input{
   flex:1;
-  padding:11px 14px;
+  height:44px;
+  padding:0 14px;
   border-radius:var(--radius-md);
   border:1px solid rgba(255,255,255,0.12);
   background:rgba(6,13,26,0.45);
@@ -195,16 +220,38 @@
 }
 .link-all:hover{ text-decoration:underline; }
 
+.browse-all-btn{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  margin-top:14px;
+  background:transparent;
+  border:none;
+  padding:0;
+  color:var(--cyan);
+  font-family:'Inter', sans-serif;
+  font-size:12.5px;
+  font-weight:600;
+  text-decoration:none;
+  cursor:pointer;
+  transition:opacity .15s var(--ease);
+}
+.browse-all-btn:hover{ opacity:0.75; }
+.browse-all-btn svg{ width:14px; height:14px; flex-shrink:0; }
+.browse-all-btn span{ white-space:nowrap; }
+.browse-all-btn .chevron{ width:13px; height:13px; }
+
 .btn-go, .btn-history{
+  height:44px;
   border:none;
   border-radius:var(--radius-md);
-  padding:0 18px;
+  padding:0 20px;
   font-family:'Inter', sans-serif;
   font-weight:600;
   font-size:13.5px;
   cursor:pointer;
   white-space:nowrap;
-  transition:transform .15s var(--ease), box-shadow .25s var(--ease);
+  transition:transform .15s var(--ease), box-shadow .25s var(--ease), background .15s var(--ease);
 }
 .btn-go{
   background:linear-gradient(135deg, var(--blue) 0%, var(--cyan) 100%);
@@ -214,11 +261,11 @@
 .btn-go:hover{ transform:translateY(-2px); }
 
 .btn-history{
-  background:rgba(255,255,255,0.08);
-  color:var(--text-hi);
-  border:1px solid var(--panel-border);
+  background:rgba(34,211,238,0.12);
+  color:var(--cyan);
+  border:1px solid rgba(34,211,238,0.4);
 }
-.btn-history:hover{ background:rgba(255,255,255,0.14); }
+.btn-history:hover{ background:rgba(34,211,238,0.2); }
 
 .section-title{
   font-size:15px;
@@ -244,6 +291,7 @@
   backdrop-filter:blur(18px) saturate(140%);
   -webkit-backdrop-filter:blur(18px) saturate(140%);
   transition:transform .2s var(--ease), border-color .2s var(--ease);
+  overflow:visible;
 }
 .tile:hover{ transform:translateY(-3px); }
 
@@ -253,6 +301,51 @@
 .accent-green{ --accent-color:#2fd88a; }
 .accent-amber{ --accent-color:#f0a93f; }
 .accent-red{ --accent-color:#f1636b; }
+
+/* Corner status badge — notification-dot language: a small filled
+   circle sitting on the tile's edge, symbol-only, no words. Critical
+   gets an expanding sonar-ping ring so it's the first thing the eye
+   catches on the whole board. */
+.tile-badge{
+  position:absolute;
+  top:-9px;
+  right:-9px;
+  width:22px;
+  height:22px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#fff;
+  box-shadow:0 2px 8px rgba(0,0,0,0.35);
+  z-index:2;
+}
+.tile-badge svg{ width:12px; height:12px; }
+.badge-good{ background:#1fae6f; }
+.badge-warn{ background:#d98d1f; }
+.badge-warn svg{ width:11px; height:11px; }
+.badge-critical{
+  background:#e13c46;
+  animation:badge-breathe 1.8s ease-in-out infinite;
+}
+.badge-info{ background:#4d5f85; }
+
+.badge-critical::after{
+  content:'';
+  position:absolute;
+  inset:0;
+  border-radius:50%;
+  border:2px solid #e13c46;
+  animation:badge-ping 1.8s ease-out infinite;
+}
+@keyframes badge-ping{
+  0%   { transform:scale(1);   opacity:0.7; }
+  100% { transform:scale(2.2); opacity:0; }
+}
+@keyframes badge-breathe{
+  0%, 100% { box-shadow:0 2px 8px rgba(225,60,70,0.5); }
+  50%      { box-shadow:0 2px 14px rgba(225,60,70,0.85); }
+}
 
 .tile-head{
   display:flex;
@@ -273,19 +366,150 @@
   color:var(--text-mid);
 }
 
+.tile-value-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+}
 .tile-value{
   margin:0 0 4px;
   font-size:28px;
   font-weight:700;
   color:var(--text-hi);
 }
+
+/* Mini progress ring for proportion-based tiles (Installed, Running) —
+   a ring answers "how much of the whole" faster than a sentence does. */
+.tile-ring{ width:38px; height:38px; flex-shrink:0; transform:rotate(-90deg); }
+.ring-track{ fill:none; stroke:var(--panel-border); stroke-width:3; }
+.ring-fill{ fill:none; stroke-width:3; stroke-linecap:round; transition:stroke-dashoffset .5s var(--ease); }
+.ring-good{ stroke:#2fd88a; }
+.ring-info{ stroke:#5b8def; }
+.ring-warn{ stroke:#f0a93f; }
+.ring-critical{ stroke:#f1636b; }
+.ring-text{
+  transform:rotate(90deg);
+  transform-box:fill-box;
+  transform-origin:center;
+  font-size:9.5px;
+  font-weight:700;
+  fill:var(--text-hi);
+}
+
 .tile-sub{
   margin:0;
   font-size:12.5px;
   color:var(--text-low);
 }
 
+/* Compact symbol+word pill — replaces the old full-sentence status
+   line. The icon carries the verdict; the word is just a caption. */
+.tile-status-pill{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  margin-top:10px;
+  padding:3px 9px 3px 7px;
+  border-radius:999px;
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:0.02em;
+  width:fit-content;
+}
+.tile-status-pill svg{ width:12px; height:12px; flex-shrink:0; }
+
+.pill-good{ background:rgba(47,216,138,0.14); color:#2fd88a; }
+.pill-warn{ background:rgba(240,169,63,0.14); color:#f0a93f; }
+.pill-critical{
+  background:rgba(241,99,107,0.16);
+  color:#f1636b;
+  animation:pill-pulse 1.8s ease-in-out infinite;
+}
+.pill-info{ background:rgba(124,138,171,0.14); color:var(--text-mid); }
+
+@keyframes pill-pulse{
+  0%, 100% { opacity:1; }
+  50% { opacity:0.6; }
+}
+
 @media (max-width:900px){
+  /* Landscape phones/tablets and narrower desktop windows — keep the
+     top-bar on a single row (this rule is overridden by the portrait
+     rule below for narrow portrait phones, which is left untouched). */
+  .top-bar{ gap:10px; padding:8px 12px; }
+  .right-cluster{ gap:8px; }
+  .datetime-line{ font-size:11px; }
+  .divider{ display:none; }
+  .user-chip{
+    padding:0;
+    gap:0;
+    background:transparent;
+    border:none;
+  }
+  .user-chip > div,
+  .user-chip .chevron{
+    display:none;
+  }
   .search-row{ grid-template-columns:1fr; }
   .tiles{ grid-template-columns:repeat(2, minmax(0,1fr)); }
+}
+
+/* Portrait mobile only — landscape (and everything above) keeps the
+   rules above untouched. Stacks the top-bar into two rows (brand +
+   avatar on row 1, date/logout on row 2) and drops tiles to a single
+   column, matching the approved mobile-portrait mock. */
+@media (max-width:600px) and (orientation:portrait){
+  :host{ padding:20px 14px 44px; }
+
+  .top-bar{
+    flex-wrap:wrap;
+    row-gap:14px;
+    overflow-x:visible;
+    padding:14px 16px;
+  }
+  .brand{ order:1; }
+
+  /* swapped: the round avatar now sits top-right (row 1), and the
+     logout icon moves down to bottom-right (row 2), where the
+     avatar used to be. */
+  .logout-icon-btn:not(.logout-bottom){ display:none; }
+  .user-chip{ display:none; }
+
+  .avatar-top{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    order:2;
+    width:34px;
+    height:34px;
+    font-size:12.5px;
+    border:1.5px solid rgba(34,211,238,0.4);
+    box-shadow:0 2px 8px rgba(0,0,0,0.4);
+  }
+
+  .right-cluster{
+    position:static;
+    transform:none;
+    order:3;
+    flex-basis:100%;
+    width:100%;
+    padding-top:14px;
+    border-top:1px solid rgba(255,255,255,0.08);
+    flex-wrap:nowrap;
+    justify-content:center;
+    gap:16px;
+    overflow-x:visible;
+  }
+  .divider{ display:none; }
+  .datetime-line{ font-size:11.5px; }
+
+  .logout-bottom{
+    display:flex;
+    flex-shrink:0;
+  }
+
+  .search-card{ padding:18px 16px; }
+
+  .tiles{ grid-template-columns:1fr; }
 }

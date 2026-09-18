@@ -37,8 +37,9 @@
 
 .mac-header{
   display:flex;
+  flex-wrap:wrap;
   align-items:center;
-  gap:14px;
+  gap:10px 14px;
   padding:18px 22px;
   border-radius:var(--radius-lg);
   background:var(--panel);
@@ -46,6 +47,11 @@
   backdrop-filter:blur(22px) saturate(140%);
   -webkit-backdrop-filter:blur(22px) saturate(140%);
   margin-bottom:24px;
+}
+
+.mac-info{
+  min-width:0;
+  flex:1 1 auto;
 }
 .mac-icon{
   width:42px; height:42px;
@@ -71,6 +77,8 @@
   font-weight:600;
   font-family:'JetBrains Mono', monospace;
   letter-spacing:0.03em;
+  overflow-wrap:break-word;
+  word-break:break-word;
 }
 
 .view-badge{
@@ -84,6 +92,7 @@
   padding:5px 10px;
   border-radius:999px;
   white-space:nowrap;
+  flex-shrink:0;
 }
 
 /* ---- Shared dark glass card used by every section on this page ---- */
@@ -147,6 +156,9 @@
 
 .receipt-form input,
 .receipt-form select{
+  width:100%;
+  max-width:100%;
+  min-width:0;
   padding:10px 12px;
   border-radius:var(--radius-md);
   border:1px solid var(--panel-border);
@@ -273,6 +285,51 @@
   color:var(--text-hi);
 }
 
+.complaint-list li{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+.complaint-row-top{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+}
+.complaint-category{
+  font-weight:600;
+  font-size:12.5px;
+  color:var(--text-hi);
+}
+.complaint-status-badge{
+  font-size:11px;
+  font-weight:600;
+  letter-spacing:0.03em;
+  text-transform:uppercase;
+  padding:2px 8px;
+  border-radius:999px;
+  background:rgba(248,113,113,0.15);
+  color:#f87171;
+  white-space:nowrap;
+}
+.complaint-open .complaint-status-badge{ background:rgba(248,113,113,0.15); color:#f87171; }
+.complaint-in-progress .complaint-status-badge{ background:rgba(251,191,36,0.15); color:#fbbf24; }
+.complaint-resolved .complaint-status-badge{ background:rgba(74,222,128,0.15); color:#4ade80; }
+.complaint-description{
+  margin:0;
+  font-size:13px;
+  color:var(--text-hi);
+}
+.complaint-meta{
+  margin:0;
+  font-size:11.5px;
+  color:var(--text-low);
+}
+.complaint-empty{
+  color:var(--text-low) !important;
+  font-style:italic;
+}
+
 .hint-text{
   font-size:12.5px;
   color:var(--text-low);
@@ -288,7 +345,14 @@
 
 @media (max-width:640px){
   .receipt-form,
-  .receipt-form fieldset{ grid-template-columns:1fr; }
+  .receipt-form fieldset,
+  .receipt-form .payment-row{ grid-template-columns:1fr; }
+}
+
+@media (max-width:480px){
+  :host{ padding:20px 14px 44px; }
+  .mac-header, .detail-card{ padding:16px 16px; }
+  .detail-card{ max-width:100%; }
 }
 
 .page-topbar{

@@ -1,0 +1,38 @@
+<div class="dp-wrapper">
+  <button type="button" class="dp-input" (click)="togglePanel()">
+    <span class="dp-value" [class.dp-placeholder]="!displayLabel">{{ displayLabel || placeholder }}</span>
+    <svg class="dp-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="3" y="5" width="18" height="16" rx="2"></rect>
+      <path d="M16 3v4M8 3v4M3 10h18"></path>
+    </svg>
+  </button>
+
+  <div class="dp-panel" [class.dp-panel-right]="alignRight()" *ngIf="open()" (click)="$event.stopPropagation()">
+    <div class="dp-panel-header">
+      <button type="button" class="dp-nav" (click)="prevMonth($event)" aria-label="Previous month">&#8249;</button>
+      <span class="dp-month-label">{{ monthLabel }}</span>
+      <button type="button" class="dp-nav" (click)="nextMonth($event)" aria-label="Next month">&#8250;</button>
+    </div>
+
+    <div class="dp-weekday-row">
+      <span *ngFor="let w of weekdayLabels">{{ w }}</span>
+    </div>
+
+    <div class="dp-week" *ngFor="let week of weeks">
+      <button
+        type="button"
+        *ngFor="let cell of week"
+        class="dp-day"
+        [class.dp-empty]="!cell"
+        [class.dp-selected]="cell && isSelected(cell.iso)"
+        [class.dp-today]="cell && isToday(cell.iso)"
+        [disabled]="!cell"
+        (click)="selectDay(cell, $event)"
+      >{{ cell?.day || '' }}</button>
+    </div>
+
+    <div class="dp-panel-footer" *ngIf="displayLabel">
+      <button type="button" class="dp-clear" (click)="clear($event)">Clear</button>
+    </div>
+  </div>
+</div>

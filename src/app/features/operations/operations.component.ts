@@ -1,12 +1,16 @@
 import { Component, OnDestroy, OnInit, computed, signal } from '@angular/core';
 import { ActivatedRoute, RouterModule, Router } from '@angular/router';
+import { HttpErrorResponse } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { catchError, of } from 'rxjs';
 import { jsPDF } from 'jspdf';
 import { DeviceApiService } from '../../core/services/device-api.service';
+import { LiveDeviceStatusService } from '../../core/services/live-device-status.service';
 import { OperationSection, ReceiptRecord } from '../../core/models/device.model';
 import { normalizeMacId, MAC_ID_FORMAT_ERROR } from '../../core/utils/mac-id.util';
+import { isFutureDateOnly, compareLifecycleDates } from '../../core/utils/date-rules.util';
+import { downloadPdf } from '../../core/utils/pdf-download.util';
 
 interface OperationOption {
   key: OperationSection;
@@ -140,9 +144,23 @@ export class OperationsComponent implements OnInit, OnDestroy {
     if (!draft.supplier.trim() || !draft.dateReceived || !draft.receiptNo.trim()) {
       return 'Supplier, date received, and receipt no. are required.';
     }
+    // A device is only added once it has actually been received — this is
+    // a completed event, so a future date is never valid here (unlike, say,
+    // a scheduled installation visit further down the lifecycle).
+    if (isFutureDateOnly(draft.dateReceived)) {
+      return 'Date received cannot be in the future.';
+    }
     if (this.isRejectedOutcome(draft)) {
       if (!draft.remarks?.trim()) return 'Remarks describing the issue are required.';
       if (!draft.decision) return 'A decision (Pending / Returned to supplier) is required.';
+      if (draft.decision === 'Returned to supplier') {
+        const returnDate = draft.returned?.date;
+        if (!returnDate) return 'Return date is required when the decision is Returned to supplier.';
+        if (isFutureDateOnly(returnDate)) return 'Return date cannot be in the future.';
+        if (compareLifecycleDates(returnDate, draft.dateReceived) < 0) {
+          return 'Return date cannot be earlier than the date received.';
+        }
+      }
       return null;
     }
     if (this.remarksRequired(draft) && !draft.remarks?.trim()) {
@@ -157,6 +175,24 @@ export class OperationsComponent implements OnInit, OnDestroy {
       return 'Remarks are required when delivery mode is Hand delivery or Self pickup.';
     }
     return null;
+  }
+
+  // Turns a failed saveReceipt() call into the right on-screen message.
+  // A duplicate receiptNo is a genuine, expected failure case — not a
+  // connection problem — so it needs its own wording instead of the
+  // generic "check your connection" fallback. Waiting on the backend to
+  // actually enforce this (409 Conflict on a receiptNo already used by
+  // a different MAC ID, e.g. via a GSI on receiptNo) — this is the
+  // frontend half, ready for whenever that lands. Until then, any
+  // error still falls through to the generic message unchanged.
+  private receiptSaveErrorMessage(err: unknown, fallback: string): string {
+    if (err instanceof HttpErrorResponse) {
+      if (err.status === 409) {
+        const backendMessage = (err.error && (err.error.message || err.error.error)) as string | undefined;
+        return backendMessage || 'This receipt no. is already on file for another device. Use a different receipt no.';
+      }
+    }
+    return fallback;
   }
 
   // Shared shape for the outgoing PUT body — the backend also strips
@@ -195,7 +231,12 @@ export class OperationsComponent implements OnInit, OnDestroy {
   // Download button.
   receiptViewOnly = signal(false);
 
-  constructor(private route: ActivatedRoute, private api: DeviceApiService, private router: Router) {}
+  constructor(
+    private route: ActivatedRoute,
+    private api: DeviceApiService,
+    private router: Router,
+    private liveStatus: LiveDeviceStatusService,
+  ) {}
 
   ngOnInit(): void {
     this.macId = this.route.snapshot.paramMap.get('macId') ?? '';
@@ -251,8 +292,36 @@ export class OperationsComponent implements OnInit, OnDestroy {
     });
   }
 
+  // "Monitoring & service" is marked on file from THREE independent
+  // sources, any one is enough — it no longer requires a customer
+  // complaint specifically:
+  //   1. a MONITORING or SERVICE# item already exists in DynamoDB
+  //      (customer complaint/feedback, or a service entry logged here)
+  //   2. the live status check has actually resolved for this device —
+  //      "found", Off or On, as long as the API answered at all
+  //      (status.resolved). A self-installed device has no technician
+  //      to ever log a SERVICE# entry and no complaint either, so
+  //      requiring a genuine non-null timestamp here was a dead end —
+  //      Disconnection and Customer feedback stayed locked forever even
+  //      for a device that's actually working fine, just currently
+  //      reporting Off. Only an actual failed/timed-out check
+  //      (status.resolved === false) should NOT count.
   private loadAvailable(): void {
-    this.api.getAvailableOperations(this.macId).subscribe((avail) => this.available.set(avail));
+    this.api.getAvailableOperations(this.macId).subscribe((avail) => {
+      // avail is { sections, bookingStatus, installationStatus } — NOT a
+      // bare string[] (see AvailableOperationsResponse / device-api.service.ts
+      // for why). Unwrapping .sections here is what was missing: handing
+      // the raw object to `this.available` meant hasData()'s `new Set(...)`
+      // threw on every read, which is why Booking + payment (never
+      // stage-gated — see isStageLocked()) looked fine while Installation
+      // onward stayed locked no matter what was actually saved.
+      this.available.set(avail.sections);
+      this.liveStatus.getStatus(this.macId).subscribe((status) => {
+        if (status.resolved && !this.available().includes('monitoring-service')) {
+          this.available.set([...this.available(), 'monitoring-service']);
+        }
+      });
+    });
   }
 
   // Step 1: add the MAC ID + its receipt/stock intake details together.
@@ -283,9 +352,9 @@ export class OperationsComponent implements OnInit, OnDestroy {
           this.loadAvailable();
         }
       },
-      error: () => {
+      error: (err) => {
         this.adding.set(false);
-        this.addError.set('Could not add this device. Check your connection and try again.');
+        this.addError.set(this.receiptSaveErrorMessage(err, 'Could not add this device. Check your connection and try again.'));
       },
     });
   }
@@ -387,7 +456,8 @@ export class OperationsComponent implements OnInit, OnDestroy {
       row('Return receipt no.', d.returned.receiptNo);
     }
 
-    doc.save(`receipt-${this.macId}.pdf`);
+    downloadPdf(doc, `receipt-${this.macId}.pdf`)
+      .catch((err) => console.error('PDF download failed', err));
   }
 
   saveReceiptEdit(): void {
@@ -421,9 +491,9 @@ export class OperationsComponent implements OnInit, OnDestroy {
         this.rejected.set(this.isRejectedOutcome(draft));
         this.loadAvailable();
       },
-      error: () => {
+      error: (err) => {
         this.savingReceipt.set(false);
-        this.addError.set('Could not save changes. Check your connection and try again.');
+        this.addError.set(this.receiptSaveErrorMessage(err, 'Could not save changes. Check your connection and try again.'));
       },
     });
   }
@@ -481,6 +551,13 @@ export class OperationsComponent implements OnInit, OnDestroy {
   // as Disconnection), but doesn't itself require Disconnection, since a
   // customer can leave feedback whether or not the device has since been
   // disconnected.
+  //
+  // "Monitoring & service on file" itself is broader than just a MONITORING
+  // DynamoDB item now — see loadAvailable() below, which also marks it on
+  // file once the live status check has resolved for the device (found,
+  // Off or On — an actual failed/timed-out check doesn't count) or when a
+  // SERVICE# history entry exists, not only when a customer complaint has
+  // been raised.
   private readonly stageOrder: OperationSection[] = [
     'booking-payment',
     'installation',
@@ -494,8 +571,13 @@ export class OperationsComponent implements OnInit, OnDestroy {
     }
     const idx = this.stageOrder.indexOf(key);
     if (idx <= 0) return false; // not a gated stage, or it's Booking (first — nothing to skip)
-    const prevKey = this.stageOrder[idx - 1];
-    return !this.hasData().has(prevKey);
+    // Check the WHOLE chain up to this stage, not just the immediate
+    // predecessor. Immediate-only checking was exploitable: monitoring-service
+    // can be marked "on file" purely from a live telemetry ping (see
+    // loadAvailable() above), with no booking or installation record ever
+    // having existed. That let Disconnection unlock on a telemetry blip
+    // alone, skipping Booking + payment and Installation entirely.
+    return this.stageOrder.slice(0, idx).some((prevKey) => !this.hasData().has(prevKey));
   }
 
   // Single check the template/click-handler use — locked if EITHER the
@@ -508,10 +590,18 @@ export class OperationsComponent implements OnInit, OnDestroy {
   // Reason shown in the title tooltip and, on a blocked click, the toast.
   cardLockedReason(key: OperationSection): string {
     if (!this.operationsUnlocked()) return this.lockedReason();
-    const prevKey: OperationSection =
-      key === 'customer-feedback' ? 'monitoring-service' : this.stageOrder[this.stageOrder.indexOf(key) - 1];
-    const prevLabel = this.operations().find((o) => o.key === prevKey)?.label ?? prevKey;
-    return `Previous step skipped — complete ${prevLabel} first`;
+    if (key === 'customer-feedback') {
+      const prevLabel = this.operations().find((o) => o.key === 'monitoring-service')?.label ?? 'monitoring-service';
+      return `Previous step skipped — complete ${prevLabel} first`;
+    }
+    // Name the first missing stage in the chain (e.g. Booking + payment),
+    // not just this card's immediate predecessor — otherwise Disconnection
+    // would tell someone to "complete Monitoring & service" when Booking
+    // and Installation are the ones actually missing.
+    const idx = this.stageOrder.indexOf(key);
+    const missingKey = this.stageOrder.slice(0, idx).find((k) => !this.hasData().has(k)) ?? this.stageOrder[idx - 1];
+    const missingLabel = this.operations().find((o) => o.key === missingKey)?.label ?? missingKey;
+    return `Previous step skipped — complete ${missingLabel} first`;
   }
 
   // Transient bottom toast for a blocked card click. Auto-dismisses on its

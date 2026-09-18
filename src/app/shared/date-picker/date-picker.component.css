@@ -1,0 +1,161 @@
+/* Inherits --panel-border/--text-hi/--text-low/--radius-md/--bg-mid/--blue/--cyan
+   as normal CSS custom-property inheritance from the page's ancestor :host
+   (device-list.component.css etc). Fallback values keep this component
+   looking right even if used somewhere those vars aren't defined. */
+
+.dp-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.dp-input {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 40px;
+  min-width: 130px;
+  padding: 0 10px;
+  border-radius: var(--radius-md, 12px);
+  border: 1px solid var(--panel-border, rgba(255, 255, 255, 0.12));
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-hi, #eef4ff);
+  font-family: 'Inter', sans-serif;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.dp-input:hover {
+  border-color: rgba(34, 211, 238, 0.35);
+}
+
+.dp-value.dp-placeholder {
+  color: var(--text-low, #6d7ea3);
+}
+
+.dp-icon {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.dp-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 50;
+  width: 240px;
+  padding: 12px;
+  border-radius: var(--radius-md, 12px);
+  background: var(--bg-mid, #0b1830);
+  border: 1px solid var(--panel-border, rgba(255, 255, 255, 0.12));
+  box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.6);
+}
+/* Used when opening left-aligned would push the panel past the right
+   edge of the viewport (e.g. the "To" field sitting near the right side
+   of the filter bar) — hang it from the input's right edge instead. */
+.dp-panel.dp-panel-right {
+  left: auto;
+  right: 0;
+}
+
+.dp-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.dp-month-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-hi, #eef4ff);
+}
+.dp-nav {
+  border: none;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-hi, #eef4ff);
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+.dp-nav:hover {
+  background: rgba(34, 211, 238, 0.18);
+}
+
+.dp-weekday-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 4px;
+}
+.dp-weekday-row span {
+  font-size: 10px;
+  text-align: center;
+  color: var(--text-low, #6d7ea3);
+}
+
+.dp-week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 2px;
+}
+
+.dp-day {
+  border: none;
+  background: transparent;
+  color: var(--text-hi, #eef4ff);
+  font-size: 11.5px;
+  height: 26px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.dp-day:hover:not(.dp-empty) {
+  background: rgba(255, 255, 255, 0.08);
+}
+.dp-day.dp-empty {
+  cursor: default;
+  visibility: hidden;
+}
+.dp-day.dp-today {
+  border: 1px solid rgba(34, 211, 238, 0.4);
+}
+.dp-day.dp-selected {
+  background: linear-gradient(135deg, var(--blue, #2f6fed), var(--cyan, #22d3ee));
+  color: #04101f;
+  font-weight: 600;
+}
+
+.dp-panel-footer {
+  margin-top: 6px;
+  text-align: right;
+}
+.dp-clear {
+  border: none;
+  background: none;
+  color: #f68e94;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+/* Let the picker stretch to fill its parent on mobile (parent now stacks
+   the From/To fields full-width — see device-list.component.css), and
+   clamp the popup so it can never be wider than the viewport itself. */
+@media (max-width: 640px) {
+  :host {
+    display: block;
+    width: 100%;
+  }
+  .dp-wrapper {
+    display: block;
+    width: 100%;
+  }
+  .dp-input {
+    width: 100%;
+    min-width: 0;
+  }
+  .dp-panel {
+    width: min(240px, calc(100vw - 64px));
+  }
+}

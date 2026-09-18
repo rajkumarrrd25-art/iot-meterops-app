@@ -33,6 +33,11 @@
   flex-wrap:wrap;
   gap:12px;
 }
+.topbar-actions{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
 .eyebrow{
   margin:0 0 4px;
   font-size:12px;
@@ -53,7 +58,26 @@
 }
 .btn-back:hover{ color:var(--cyan); }
 
-.add-card, .search-card{
+.home-btn{
+  width:32px;
+  height:32px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:rgba(255,255,255,0.06);
+  border:1px solid var(--panel-border);
+  color:var(--text-mid);
+  text-decoration:none;
+  transition:border-color .15s var(--ease), color .15s var(--ease);
+}
+.home-btn svg{ width:16px; height:16px; }
+.home-btn:hover{
+  border-color:rgba(34,211,238,0.5);
+  color:var(--cyan);
+}
+
+.add-card{
   padding:20px 22px;
   border-radius:var(--radius-lg);
   background:var(--panel);
@@ -72,7 +96,7 @@
   color:var(--text-mid);
 }
 .add-controls{ display:flex; gap:8px; }
-.add-controls input, .search-input{
+.add-controls input{
   flex:1;
   padding:11px 14px;
   border-radius:var(--radius-md);
@@ -83,8 +107,8 @@
   font-size:13px;
   outline:none;
 }
-.add-controls input::placeholder, .search-input::placeholder{ color:var(--text-low); }
-.add-controls input:focus, .search-input:focus{ border-color:rgba(34,211,238,0.5); }
+.add-controls input::placeholder{ color:var(--text-low); }
+.add-controls input:focus{ border-color:rgba(34,211,238,0.5); }
 
 .btn-add{
   border:none;
@@ -111,36 +135,130 @@
 }
 .state-msg.error{ color:#f68e94; }
 
-.list{ display:flex; flex-direction:column; gap:10px; }
+.list{ display:flex; flex-direction:column; gap:14px; }
 
-.row{
+.filter-bar{
   display:flex;
   align-items:center;
-  gap:16px;
+  flex-wrap:wrap;
+  gap:10px;
+  padding:14px 16px;
+  border-radius:var(--radius-lg);
+  background:var(--panel);
+  border:1px solid var(--panel-border);
+  backdrop-filter:blur(18px) saturate(140%);
+  -webkit-backdrop-filter:blur(18px) saturate(140%);
+  margin-bottom:16px;
+  position:relative;
+  z-index:5;
+}
+
+.filter-select{
+  flex:1 1 200px;
+  min-width:160px;
+  height:40px;
+  padding:0 12px;
+  border-radius:var(--radius-md);
+  border:1px solid var(--panel-border);
+  background:rgba(255,255,255,0.04);
+  color:var(--text-hi);
+  font-family:'Inter', sans-serif;
+  font-size:13px;
+  outline:none;
+  cursor:pointer;
+  /* Without this, the closed select picks up our dark styles above, but
+     the native dropdown POPUP (options list) falls back to the browser/OS
+     light theme — white background — while still inheriting our light
+     `color:var(--text-hi)` text, so the options are nearly invisible
+     (light-on-white). color-scheme:dark tells the browser to render its
+     own native popup chrome (background, text, highlight) in dark mode
+     to match, same as the date inputs below already do. */
+  color-scheme:dark;
+}
+
+.filter-select option{
+  background:var(--bg-mid);
+  color:var(--text-hi);
+}
+
+.filter-date-group{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.filter-date-label{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:11.5px;
+  color:var(--text-low);
+  white-space:nowrap;
+}
+
+.filter-clear{
+  height:40px;
+  padding:0 14px;
+  border-radius:var(--radius-md);
+  border:1px solid rgba(239,68,68,0.35);
+  background:rgba(239,68,68,0.1);
+  color:#f68e94;
+  font-family:'Inter', sans-serif;
+  font-size:12.5px;
+  font-weight:600;
+  cursor:pointer;
+  white-space:nowrap;
+}
+.filter-clear:hover{ background:rgba(239,68,68,0.18); }
+
+.result-count{
+  margin:0 0 10px 2px;
+  font-size:12px;
+  color:var(--text-low);
+}
+
+.row{
+  display:grid;
+  grid-template-columns:190px 190px minmax(140px,1fr) auto;
+  align-items:center;
+  gap:0;
   width:100%;
   text-align:left;
-  padding:16px 18px;
+  padding:20px 22px;
   border-radius:var(--radius-md);
   background:var(--panel);
   border:1px solid var(--panel-border);
   color:var(--text-hi);
   font-family:'Inter', sans-serif;
-  cursor:pointer;
   backdrop-filter:blur(18px) saturate(140%);
   -webkit-backdrop-filter:blur(18px) saturate(140%);
-  transition:transform .15s var(--ease), border-color .15s var(--ease), background .15s var(--ease);
+  transition:border-color .15s var(--ease), background .15s var(--ease);
 }
 .row:hover{
-  transform:translateY(-2px);
-  border-color:rgba(34,211,238,0.35);
-  background:rgba(255,255,255,0.09);
+  border-color:rgba(34,211,238,0.25);
+  background:rgba(255,255,255,0.07);
 }
 
 .row-mac{
   font-family:'JetBrains Mono', monospace;
   font-weight:600;
   font-size:14px;
-  min-width:170px;
+}
+
+.row-device{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  min-width:0;
+  min-height:44px;
+  justify-content:center;
+  padding-right:18px;
+}
+
+.row-meta{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:6px;
 }
 
 .row-stage{
@@ -159,19 +277,108 @@
 .pill-red{ background:rgba(239,68,68,0.14); color:#f68e94; }
 
 .row-created{
-  font-size:12px;
+  font-size:11.5px;
   color:var(--text-low);
-  flex:1;
+  white-space:nowrap;
+}
+
+.row-customer{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  min-width:0;
+  padding:0 18px;
+  border-left:1px solid rgba(255,255,255,0.08);
+}
+.row-customer-name{
+  font-size:13px;
+  color:var(--text-hi);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.row-customer-phone{
+  font-size:11.5px;
+  color:var(--text-low);
+  font-family:'JetBrains Mono', monospace;
+}
+
+.row-address{
+  font-size:12px;
+  color:var(--text-mid);
+  min-width:0;
+  padding:0 18px;
+  border-left:1px solid rgba(255,255,255,0.08);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
 }
 
 .row-arrow{
+  border:1px solid rgba(34,211,238,0.4);
+  background:rgba(34,211,238,0.1);
+  border-radius:var(--radius-md);
+  padding:8px 16px;
+  margin-left:18px;
   font-size:12.5px;
   font-weight:600;
   color:var(--cyan);
   white-space:nowrap;
+  flex-shrink:0;
+  cursor:pointer;
+  font-family:'Inter', sans-serif;
+  transition:background .15s var(--ease);
 }
+.row-arrow:hover{ background:rgba(34,211,238,0.2); }
 
 @media (max-width:640px){
-  .row{ flex-wrap:wrap; }
-  .row-created{ order:3; width:100%; }
+  .row{
+    grid-template-columns:1fr;
+    gap:10px;
+  }
+  .row-device{ padding-right:0; }
+  .row-customer, .row-address{
+    padding:10px 0 0;
+    border-left:none;
+    border-top:1px solid rgba(255,255,255,0.08);
+  }
+  .row-arrow{ justify-self:start; margin-left:0; }
+
+  /* Filter bar: on narrow screens the "From"/"To" date pickers used to
+     sit in a fixed-width, non-wrapping row that overflowed past the
+     card edge and got clipped by the page's overflow-x:hidden. Stack
+     everything full-width instead so nothing runs off-screen. */
+  .filter-bar{
+    flex-direction:column;
+    align-items:stretch;
+  }
+  .filter-select{
+    /* Reset the desktop "flex:1 1 200px" shorthand: in a column-direction
+       flex container the main axis is vertical, so that 200px flex-basis
+       (plus flex-grow:1) was sizing HEIGHT instead of width, ballooning
+       the dropdown to ~200px tall. Pin it back to its own content height. */
+    flex:0 0 auto;
+    width:100%;
+    min-width:0;
+    height:40px;
+  }
+  .filter-date-group{
+    width:100%;
+    flex-direction:column;
+    align-items:stretch;
+    gap:12px;
+  }
+  .filter-date-label{
+    width:100%;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:6px;
+  }
+  .filter-clear{
+    width:100%;
+  }
+}
+
+@media (max-width:480px){
+  :host{ padding:24px 16px 48px; }
 }

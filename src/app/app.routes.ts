@@ -34,6 +34,17 @@ export const routes: Routes = [
     canActivate: [authGuard],
   },
   {
+    // Browsable "all devices" list — used from two entry points:
+    //   /devices                -> operations mode (default)
+    //   /devices?for=history    -> history/audit-trail mode
+    path: 'devices',
+    loadComponent: () =>
+      import('./features/device-list/device-list.component').then(
+        (m) => m.DeviceListComponent,
+      ),
+    canActivate: [authGuard],
+  },
+  {
     // View-only, auto-updated complete audit trail — no edit/delete route exists.
     path: 'history/:macId',
     loadComponent: () =>

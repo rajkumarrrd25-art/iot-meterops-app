@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { AuthService } from './auth.service';
@@ -16,6 +16,7 @@ import {
   CurrentStatusRecord,
   HistoryEvent,
   CustomerFeedback,
+  AvailableOperationsResponse,
 } from '../models/device.model';
 
 @Injectable({ providedIn: 'root' })
@@ -44,15 +45,34 @@ export class DeviceApiService {
   }
 
   // ---- All devices (list page used by both Operations and History) ----
-  listDevices(): Observable<DeviceListItem[]> {
+  // Filters are optional and applied server-side (post-merge — `stage`
+  // isn't a stored attribute, see index.js). Called with no args this is
+  // unchanged from before — the Dashboard's live-status tiles rely on
+  // getting the full unfiltered list, so that call site is untouched.
+  listDevices(filters?: { stage?: string; from?: string; to?: string }): Observable<DeviceListItem[]> {
+    let params = new HttpParams();
+    if (filters?.stage && filters.stage !== 'All') params = params.set('stage', filters.stage);
+    if (filters?.from) params = params.set('from', filters.from);
+    if (filters?.to) params = params.set('to', filters.to);
+
     return this.http.get<DeviceListItem[]>(this.url(environment.endpoints.devicesList), {
       headers: this.authHeaders(),
+      params,
     });
   }
 
   // ---- Which operations have data for this MAC ID (drives dropdown enable/disable) ----
-  getAvailableOperations(macId: string): Observable<string[]> {
-    return this.http.get<string[]>(
+  // Backend returns { sections, bookingStatus, installationStatus } — NOT a bare
+  // string[] — since bookingStatus/installationStatus were added so the
+  // Operations grid can eventually show the real record state (e.g.
+  // "Confirmed" vs "Pending") instead of a flat "on file" badge. Keep this
+  // typed to the actual shape; unwrapping .sections is the caller's job
+  // (see operations.component.ts loadAvailable()) — handing the raw
+  // response straight to `new Set(...)` as if it were still a string[]
+  // throws, since a plain object has no iterator, which is exactly what
+  // was silently breaking every stage-lock check past Booking + payment.
+  getAvailableOperations(macId: string): Observable<AvailableOperationsResponse> {
+    return this.http.get<AvailableOperationsResponse>(
       this.url(environment.endpoints.deviceOperations, macId),
       { headers: this.authHeaders() },
     );

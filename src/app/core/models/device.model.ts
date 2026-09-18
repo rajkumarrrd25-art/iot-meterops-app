@@ -9,6 +9,19 @@ export type OperationSection =
   | 'current-status'
   | 'customer-feedback';
 
+// Response shape of GET /devices/{macId}/available-operations. `sections`
+// is what drives the "on file" / stage-lock checks (see
+// operations.component.ts hasData()/isStageLocked()); bookingStatus and
+// installationStatus ride along so a card can eventually show the real
+// record state (e.g. "Confirmed" vs "Pending") instead of a flat "on
+// file" badge — not wired into the UI yet, but the backend already
+// returns them, so the type here matches the actual response.
+export interface AvailableOperationsResponse {
+  sections: OperationSection[];
+  bookingStatus?: BookingPaymentRecord['bookingStatus'];
+  installationStatus?: InstallationRecord['installationStatus'];
+}
+
 // Backend (Lambda) formula — locked, do not change without re-confirming:
 //   totalDevices = count of DeviceRecord items in DynamoDB (every macId ever added)
 //   installed    = count of devices with InstallationRecord.installationStatus === 'Completed'
@@ -28,6 +41,11 @@ export interface DashboardSummary {
   missingCount: number;
   customerComplaintsCount: number;
   customerFeedbackCount: number;
+  // Classified off each device's LATEST feedback rating only (not every
+  // rating it's ever received) — an old bad review doesn't keep a
+  // device flagged once it's since rated well, and vice versa.
+  badFeedbackCount: number;   // latest rating below 3★
+  goodFeedbackCount: number;  // latest rating exactly 5★
 }
 
 // One row per device for the "all devices" list page — used by both the
@@ -44,10 +62,23 @@ export interface DashboardSummary {
 export interface DeviceListItem {
   macId: string;
   createdAt: string;
-  stage: 'Received' | 'Rejected' | 'Booked' | 'Installed' | 'Disconnected';
+  // Fleet-analysis bucket for the "All devices" list/filter — one bucket
+  // per device, priority order: Instock < Booked < Active < Disconnected
+  // < Complaint (Complaint wins over everything, incl. Disconnected, since
+  // it's the most actionable state for support). 'Rejected' is terminal
+  // (intake check failed) and only applies when nothing else progressed.
+  // 'Active' reflects installation being Completed — it does NOT depend
+  // on live telemetry; that's a separate concern (Dashboard's Running/
+  // Missing-Offline tiles).
+  stage: 'Instock' | 'Booked' | 'Active' | 'Disconnected' | 'Complaint' | 'Rejected';
   condition?: 'New' | 'Used' | 'Refurbished';
   bookingStatus?: 'Pending' | 'Confirmed' | 'Cancelled';
   installationStatus?: 'Pending' | 'Completed' | 'Failed';
+  // Present only once a booking exists for this device — undefined for a
+  // device still sitting at Received/Rejected with no customer attached yet.
+  customerName?: string;
+  customerPhone?: string;
+  customerAddress?: string;
 }
 
 // The bare record that exists the moment a MAC ID is added — before any
@@ -55,6 +86,17 @@ export interface DeviceListItem {
 export interface DeviceRecord {
   macId: string;
   createdAt: string;
+}
+
+// Response for GET /devices/{macId}/operations — which section records
+// exist for this device, PLUS the actual status of Booking/Installation
+// (when on file) so the Operations grid can show real state instead of
+// a flat "On file" badge that reads the same whether Installation is
+// Completed or still Pending.
+export interface AvailableOperations {
+  sections: OperationSection[];
+  bookingStatus?: 'Pending' | 'Confirmed' | 'Cancelled';
+  installationStatus?: 'Pending' | 'Completed' | 'Failed';
 }
 
 export interface ReceiptRecord {
@@ -146,12 +188,16 @@ export interface InstallationRecord {
 }
 
 export interface ComplaintRecord {
-  macId: string;
   complaintId: string;
-  dateTime: string;
+  category: string;
   description: string;
   status: 'Open' | 'In-progress' | 'Resolved';
+  raisedAt: string;
   // Written by the CUSTOMER APP, never from this app — read-only here.
+  // Field names here must match the backend's complaint object exactly
+  // (complaintId, category, description, status, raisedAt) — there is
+  // no macId or dateTime on this object; macId lives on the parent
+  // MONITORING item, and the timestamp field is raisedAt, not dateTime.
 }
 
 export type ServiceResolutionType = 'Repair' | 'Replacement-Spare' | 'Replacement-Device';
@@ -159,8 +205,8 @@ export type ServiceResolutionType = 'Repair' | 'Replacement-Spare' | 'Replacemen
 export interface ServiceRecord {
   macId: string;
   complaintId?: string; // link back to the complaint, if any
-  bookedBy: string;       // technician
-  solvedBy: string;       // technician
+  technicianName: string;
+  technicianPhone: string;
   date: string;
   amount: { value: number; status: 'Paid' | 'Free' };
   resolutionType: ServiceResolutionType;
@@ -192,6 +238,14 @@ export interface DisconnectionRecord {
   type: 'Temporary stop' | 'Permanent';
   reason: 'Payment issue' | 'Other';
   otherReasonText?: string;
+  // A 'Temporary stop' disconnection isn't necessarily permanent — once
+  // the issue is resolved (payment received, etc.) it can be cleared via
+  // the "Reconnect" action instead of staying stuck as Disconnected
+  // forever. Undefined/omitted means still disconnected (the original
+  // behavior); 'Reconnected' means the backend no longer counts this
+  // record toward the device's live status or stage.
+  status?: 'Reconnected';
+  reconnectedAt?: string;
 }
 
 export interface CurrentStatusRecord {
@@ -211,16 +265,18 @@ export interface CurrentStatusRecord {
 export interface HistoryEvent {
   macId: string;
   timestamp: string;
-  stage: 'RECEIPT' | 'BOOKING' | 'INSTALLATION' | 'SERVICE' | 'DISCONNECTION' | 'REPLACEMENT';
+  stage: 'RECEIPT' | 'BOOKING' | 'INSTALLATION' | 'SERVICE' | 'DISCONNECTION' | 'REPLACEMENT' | 'COMPLAINT' | 'FEEDBACK';
   summary: string;   // one-line human readable summary for the timeline
   payload: unknown;  // the full record for that event (one of the types above)
 }
 
 export interface CustomerFeedback {
-  customerName: string;
-  feedbackText: string;
-  date: string;
+  rating: number; // 1-5
+  comments: string;
+  loggedAt: string;
   macId?: string;
-  rating?: number; // 1-5
   // Written by the CUSTOMER APP — standalone page here, read-only.
+  // Field names here must match the backend's feedback object exactly
+  // (rating, comments, loggedAt) — there is no customerName, feedbackText
+  // or date on this object.
 }

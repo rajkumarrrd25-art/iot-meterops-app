@@ -38,8 +38,9 @@
 .mac-header{
   position:relative;
   display:flex;
+  flex-wrap:wrap;
   align-items:center;
-  gap:14px;
+  gap:10px 14px;
   padding:18px 22px;
   border-radius:var(--radius-lg);
   background:var(--panel);
@@ -47,6 +48,11 @@
   backdrop-filter:blur(22px) saturate(140%);
   -webkit-backdrop-filter:blur(22px) saturate(140%);
   margin-bottom:32px;
+}
+
+.mac-info{
+  min-width:0;
+  flex:1 1 auto;
 }
 
 .mac-icon{
@@ -74,6 +80,8 @@
   font-weight:600;
   font-family:'JetBrains Mono', monospace;
   letter-spacing:0.03em;
+  overflow-wrap:break-word;
+  word-break:break-all;
 }
 
 .view-badge{
@@ -87,6 +95,7 @@
   padding:5px 10px;
   border-radius:999px;
   white-space:nowrap;
+  flex-shrink:0;
 }
 
 .checking{
@@ -389,6 +398,12 @@
   .op-grid{ grid-template-columns:1fr; }
 }
 
+@media (max-width:480px){
+  :host{ padding:20px 14px 44px; }
+  .mac-header{ padding:16px 16px; }
+  .modal-card{ padding:22px 18px; }
+}
+
 .page-topbar{
   display:flex;
   align-items:center;
@@ -418,6 +433,7 @@
   display:flex;
   gap:8px;
   margin-left:auto;
+  flex-shrink:0;
 }
 .icon-btn{
   width:36px;

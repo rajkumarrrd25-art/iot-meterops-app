@@ -10,7 +10,7 @@
   <span class="mac-icon">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="7" width="20" height="12" rx="2"/><path d="M6 11h.01M10 11h.01M14 11h.01M6 15h4"/></svg>
   </span>
-  <div>
+  <div class="mac-info">
     <p class="mac-label">MAC ID</p>
     <p class="mac-value">{{ macId }} — {{ section() }}</p>
   </div>
@@ -139,6 +139,18 @@
       <div class="view-field" *ngIf="installationRemarksRequired(inst)"><span class="view-label">Remarks</span><span class="view-value">{{ inst.remarks || '—' }}</span></div>
     </div>
   </ng-container>
+  <!-- Self-installed devices skip the technician form entirely, but
+       saveInstallation() now marks them Completed automatically at
+       save time (see section-detail.component.ts) — surface that here
+       too, so the audit trail actually shows a self-installed device
+       reached Completed instead of looking permanently blank. -->
+  <ng-container *ngIf="inst.installedByCustomer">
+    <p class="card-sub-heading">Work Completion</p>
+    <div class="view-grid">
+      <div class="view-field"><span class="view-label">Completed date & time</span><span class="view-value">{{ inst.completedDateTime || '—' }}</span></div>
+      <div class="view-field"><span class="view-label">Status</span><span class="view-value">{{ inst.installationStatus || '—' }}</span></div>
+    </div>
+  </ng-container>
   <div class="view-actions">
     <button class="btn-add" type="button" (click)="downloadSectionPdf()">Download PDF</button>
     <button class="btn-secondary" type="button" (click)="closeView()">Close</button>
@@ -155,7 +167,16 @@
     Defaulted from Booking + Payment (Installation mode: {{ bookingPayment()?.installationMode }}) — change here if it's since been corrected.
   </p>
 
-  <p class="hint-text full-row" *ngIf="inst.installedByCustomer">Installed by customer — no further fields needed.</p>
+  <ng-container *ngIf="inst.installedByCustomer">
+    <fieldset>
+      <legend>Confirm self-installation</legend>
+      <p class="hint-text full-row">
+        Enter when the customer installed this device, then Save — this marks Installation as Completed.
+      </p>
+      <label>Installed on (date & time) <input type="datetime-local" [(ngModel)]="inst.installationDateTime" name="selfInstallDateTime" required /></label>
+      <label>Remarks (optional) <input [(ngModel)]="inst.remarks" name="selfInstallRemarks" /></label>
+    </fieldset>
+  </ng-container>
 
   <ng-container *ngIf="!inst.installedByCustomer">
     <p *ngIf="installationLockReason() as reason" class="warning full-row">
@@ -224,8 +245,16 @@
   </div>
 
   <p class="card-sub-heading">Customer complaints (view only — from customer app)</p>
-  <ul class="detail-list">
-    <li *ngFor="let c of ms.complaints">{{ c.dateTime }} — {{ c.description }} ({{ c.status }})</li>
+  <ul class="detail-list complaint-list">
+    <li *ngFor="let c of ms.complaints" [class]="'complaint-' + c.status.toLowerCase()">
+      <div class="complaint-row-top">
+        <span class="complaint-category">{{ c.category }}</span>
+        <span class="complaint-status-badge">{{ c.status }}</span>
+      </div>
+      <p class="complaint-description">{{ c.description }}</p>
+      <p class="complaint-meta">{{ c.complaintId }} · Raised {{ c.raisedAt | date:'medium' }}</p>
+    </li>
+    <li *ngIf="ms.complaints.length === 0" class="complaint-empty">No complaints raised for this device.</li>
   </ul>
 
   <!-- Service history list removed from this page — it's shown in the
@@ -243,8 +272,14 @@
   <p class="card-sub-heading">Log new service</p>
   <p class="warning full-row" *ngIf="bookingGateReason() as gateReason">{{ gateReason }}</p>
   <form class="receipt-form" (ngSubmit)="submitService()">
-    <label>Booked by <input [(ngModel)]="newService().bookedBy" name="bookedBy" /></label>
-    <label>Solved by <input [(ngModel)]="newService().solvedBy" name="solvedBy" required /></label>
+    <label class="full-row" *ngIf="openComplaints().length > 0">Resolves complaint
+      <select [(ngModel)]="newService().complaintId" name="complaintId">
+        <option [ngValue]="undefined">— None —</option>
+        <option *ngFor="let c of openComplaints()" [ngValue]="c.complaintId">{{ c.complaintId }} — {{ c.description || c.category }}</option>
+      </select>
+    </label>
+    <label>Technician name <input [(ngModel)]="newService().technicianName" name="technicianName" required /></label>
+    <label>Technician phone number <input type="tel" [(ngModel)]="newService().technicianPhone" name="technicianPhone" required /></label>
     <label>Date <input type="date" [(ngModel)]="newService().date" name="serviceDate" required /></label>
     <label>Resolution type
       <select [(ngModel)]="newService().resolutionType" name="resolutionType">
@@ -299,7 +334,9 @@
     <div class="view-field"><span class="view-label">Date</span><span class="view-value">{{ d.date || '—' }}</span></div>
     <div class="view-field"><span class="view-label">Type</span><span class="view-value">{{ d.type || '—' }}</span></div>
     <div class="view-field"><span class="view-label">Reason</span><span class="view-value">{{ d.reason === 'Other' ? (d.otherReasonText || 'Other') : d.reason }}</span></div>
+    <div class="view-field" *ngIf="d.status === 'Reconnected'"><span class="view-label">Reconnected at</span><span class="view-value">{{ d.reconnectedAt | date:'medium' }}</span></div>
   </div>
+  <p class="hint-text full-row" *ngIf="d.status === 'Reconnected'">Reconnected — no longer counted as Disconnected.</p>
   <div class="view-actions">
     <button class="btn-add" type="button" (click)="downloadSectionPdf()">Download PDF</button>
     <button class="btn-secondary" type="button" (click)="closeView()">Close</button>
@@ -314,7 +351,7 @@
     </select>
   </label>
   <label>Name <input [(ngModel)]="d.name" name="discName" /></label>
-  <label>Date <input type="date" [(ngModel)]="d.date" name="discDate" /></label>
+  <label>Date <input type="date" [(ngModel)]="d.date" name="discDate" required /></label>
   <label>Type
     <select [(ngModel)]="d.type" name="discType">
       <option>Temporary stop</option><option>Permanent</option>
@@ -326,12 +363,23 @@
     </select>
   </label>
   <label *ngIf="d.reason === 'Other'">Details <input [(ngModel)]="d.otherReasonText" name="otherReason" /></label>
+  <p class="hint-text full-row" *ngIf="d.status === 'Reconnected'">
+    Reconnected {{ d.reconnectedAt | date:'medium' }} — issue resolved, this device is no longer counted as Disconnected. Saving this form again (e.g. logging a fresh disconnection) will re-flag it.
+  </p>
   <p class="warning full-row" *ngIf="bookingGateReason() as gateReason">{{ gateReason }}</p>
   <p class="hint-text full-row" *ngIf="disconnectionMessage()">{{ disconnectionMessage() }}</p>
   <p class="warning full-row" *ngIf="disconnectionError()">{{ disconnectionError() }}</p>
-  <div class="full-row" style="display:flex; gap:8px;">
+  <div class="full-row" style="display:flex; gap:8px; flex-wrap: wrap;">
     <button class="btn-add" type="submit" [disabled]="savingDisconnection() || bookingGateReason() !== null">{{ savingDisconnection() ? 'Saving…' : 'Save' }}</button>
     <button class="btn-secondary" type="button" (click)="clearDisconnection()" [disabled]="savingDisconnection()">Clear</button>
+    <button
+      class="btn-add"
+      type="button"
+      *ngIf="canReconnect()"
+      (click)="reconnectDevice()"
+      [disabled]="reconnecting()"
+      style="background: linear-gradient(135deg, #22c55e, #16a34a);"
+    >{{ reconnecting() ? 'Reconnecting…' : 'Reconnect (issue resolved)' }}</button>
   </div>
 </form>
 
@@ -346,9 +394,14 @@
 <!-- CUSTOMER FEEDBACK — read only, written by the customer app -->
 <div class="detail-card" *ngIf="section() === 'customer-feedback'">
   <p class="hint-text"><em>View only — submitted from the customer app.</em></p>
-  <ul class="detail-list">
+  <ul class="detail-list complaint-list">
     <li *ngFor="let f of customerFeedback()">
-      {{ f.date }} — {{ f.customerName }}<span *ngIf="f.rating"> ({{ f.rating }}/5)</span>: {{ f.feedbackText }}
+      <div class="complaint-row-top">
+        <span class="complaint-category">{{ f.rating }}/5 ★</span>
+        <span class="complaint-meta">{{ f.loggedAt | date:'medium' }}</span>
+      </div>
+      <p class="complaint-description" *ngIf="f.comments">{{ f.comments }}</p>
+      <p class="complaint-description" *ngIf="!f.comments"><em>No comments left.</em></p>
     </li>
   </ul>
   <p class="hint-text" *ngIf="customerFeedback().length === 0">No feedback yet for this device.</p>

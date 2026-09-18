@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, forkJoin, of } from 'rxjs';
 import { catchError, map, timeout } from 'rxjs/operators';
+import { environment } from '../../../environments/environment';
 
 /**
  * Reuses the EXACT same live device-monitoring API and online/offline rule
@@ -20,8 +21,9 @@ import { catchError, map, timeout } from 'rxjs/operators';
  */
 
 // Same endpoint as App 1's EnergyDataService.deviceApiUrl.
-const LIVE_DEVICE_API_URL =
-  'https://rook297mid.execute-api.ap-south-1.amazonaws.com/default/EnergyConsumptionReportFromDynamoDB';
+// Value lives in environment.ts (liveDeviceApiUrl) — see comment there for
+// why it's separate from apiBaseUrl.
+const LIVE_DEVICE_API_URL = environment.liveDeviceApiUrl;
 
 // Same threshold as App 1's LiveVoltageTracker.isOnline(): a device is
 // only considered ON if its last reported reading is under 2 minutes old.
@@ -38,6 +40,15 @@ export interface LiveDeviceStatus {
   macId: string;
   online: boolean;
   timestamp: number | null; // last genuine reading time, ms epoch
+  // True once the live API has actually answered for this macId — even
+  // if the answer is "never reported, timestamp null". False only when
+  // the call itself errored/timed out (network hiccup, backend down),
+  // which is the one case that should NOT be treated as "found" yet.
+  // Without this, a genuine self-installed device that has simply never
+  // sent a reading was indistinguishable from an actual API failure —
+  // both collapsed to timestamp:null — so "found, currently Off" and
+  // "couldn't even check" were wrongly treated the same way.
+  resolved: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -59,11 +70,13 @@ export class LiveDeviceStatusService {
         map((response) => {
           const live = response?.liveVoltage ?? response;
           const timestamp: number | null = live?.timestamp ?? null;
-          return { macId, online: this.isOnline(timestamp), timestamp };
+          return { macId, online: this.isOnline(timestamp), timestamp, resolved: true };
         }),
         // A device that never responds (power-cut, never installed, API
-        // hiccup) is simply Offline — not an app error.
-        catchError(() => of({ macId, online: false, timestamp: null })),
+        // hiccup) is simply Offline — not an app error. resolved:false
+        // is what tells callers this was an actual failure, not a
+        // legitimate "never reported" reading.
+        catchError(() => of({ macId, online: false, timestamp: null, resolved: false })),
       );
   }
 
